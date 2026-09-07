@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../services/country_filter.dart';
+import '../services/epg_service.dart';
 import '../services/m3u_service.dart';
 import '../services/stalker_service.dart';
 import '../services/storage.dart';
 import '../services/xtream_service.dart';
 import '../theme/nova_theme.dart';
 import '../widgets/aurora_background.dart';
+import '../widgets/category_sidebar.dart';
+import '../widgets/epg_panel.dart';
+import '../widgets/hero_banner.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/nova_widgets.dart';
 import '../widgets/poster_card.dart';
@@ -34,7 +38,6 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   List<Movie> _movies = [];
   List<Series> _series = [];
 
-  // Pays detecte pour chaque element, calcule une seule fois.
   final Map<String, String> _countryOf = {};
   List<Country> _countries = [CountryFilter.all.first];
 
@@ -43,18 +46,27 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   String _country = 'ALL';
   String _query = '';
 
-  // Mini televiseur
+  // Mini TV + EPG
   Channel? _preview;
+  List<EpgProgram> _epg = [];
+  bool _epgLoading = false;
+
+  // Bandeau haut pour films et series
+  Movie? _heroMovie;
+  Series? _heroSeries;
+  bool _heroLoading = false;
+
   bool _manageMode = false;
 
   StalkerService? _stalker;
   XtreamService? _xtream;
+  EpgService? _epgService;
 
   @override
   void initState() {
     super.initState();
-    _country = Storage.getString('country_${widget.portal.id}',
-        fallback: 'ALL');
+    _country =
+        Storage.getString('country_${widget.portal.id}', fallback: 'ALL');
     _load();
   }
 
@@ -79,6 +91,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           );
           await x.authenticate();
           _xtream = x;
+          _epgService = EpgService(
+            host: x.host,
+            username: p.username,
+            password: p.password,
+          );
           _live = await x.liveChannels();
           try {
             _movies = await x.movies();
@@ -119,7 +136,6 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     }
   }
 
-  /// Detecte le pays de chaque element et construit la liste des pays.
   void _computeCountries() {
     final counts = <String, int>{};
     void add(String id, String name, String group) {
@@ -145,6 +161,8 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       _tab = t;
       _group = 'Tout';
       _query = '';
+      _heroMovie = null;
+      _heroSeries = null;
     });
   }
 
@@ -176,11 +194,16 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   List<Series> get _fSeries =>
       _series.where((s) => _visible(s.id, s.name, s.group)).toList();
 
-  List<String> get _groups {
-    final set = <String>{'Tout'};
+  /// Categories de la barre laterale, avec compteurs.
+  List<SideItem> get _sideItems {
+    final counts = <String, int>{};
+    int total = 0;
+
     void collect(String id, String group) {
+      if (Storage.isHidden(widget.portal.id, id)) return;
       if (_country != 'ALL' && (_countryOf[id] ?? '') != _country) return;
-      set.add(group);
+      counts[group] = (counts[group] ?? 0) + 1;
+      total++;
     }
 
     switch (_tab) {
@@ -200,13 +223,19 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
         }
         break;
     }
-    return set.toList();
+
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return [
+      SideItem('Tout', 'Toutes', total),
+      ...entries.map((e) => SideItem(e.key, e.key, e.value)),
+    ];
   }
 
   // --- Actions ---
 
-  /// Premier clic : apercu dans la mini TV. Deuxieme clic : plein ecran.
-  void _tapChannel(Channel c, List<Channel> list) {
+  Future<void> _tapChannel(Channel c, List<Channel> list) async {
     if (_manageMode) {
       _confirmHide(c.id, c.name);
       return;
@@ -216,12 +245,58 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
         context,
         MaterialPageRoute(
           builder: (_) =>
-              PlayerScreen(channel: c, playlist: list, stalker: _stalker),
+              PlayerScreen(channel: c, playlist: list, stalker: _stalker, epg: _epgService),
         ),
       );
-    } else {
-      setState(() => _preview = c);
+      return;
     }
+
+    setState(() {
+      _preview = c;
+      _epg = [];
+      _epgLoading = false;
+    });
+    _loadEpg(c);
+  }
+
+  Future<void> _loadEpg(Channel c) async {
+    final svc = _epgService;
+    if (svc == null) return;
+    // L'identifiant Xtream est du type xt_live_1234
+    final sid = c.id.startsWith('xt_live_') ? c.id.substring(8) : '';
+    if (sid.isEmpty) return;
+
+    setState(() => _epgLoading = true);
+    final progs = await svc.forStream(sid);
+    if (!mounted || _preview?.id != c.id) return;
+    setState(() {
+      _epg = progs;
+      _epgLoading = false;
+    });
+  }
+
+  Future<void> _hoverMovie(Movie m) async {
+    if (_heroMovie?.id == m.id) return;
+    setState(() {
+      _heroMovie = m;
+      _heroSeries = null;
+      _heroLoading = m.plot.isEmpty;
+    });
+    if (m.plot.isEmpty && _xtream != null) {
+      await _xtream!.fillMovieInfo(m);
+      if (mounted && _heroMovie?.id == m.id) {
+        setState(() => _heroLoading = false);
+      }
+    }
+  }
+
+  void _hoverSeries(Series s) {
+    if (_heroSeries?.id == s.id) return;
+    setState(() {
+      _heroSeries = s;
+      _heroMovie = null;
+      _heroLoading = false;
+    });
   }
 
   Future<void> _confirmHide(String id, String name) async {
@@ -231,7 +306,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
         backgroundColor: NovaColors.surface,
         title: const Text('Supprimer de la liste ?'),
         content: Text(
-          '"$name" sera masque.\nTu pourras le restaurer depuis le bouton Corbeille.',
+          '"$name" sera masque.\nRestaurable via le bouton corbeille.',
           style: const TextStyle(color: NovaColors.textDim, fontSize: 13),
         ),
         actions: [
@@ -285,17 +360,6 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     }
   }
 
-  int get _count {
-    switch (_tab) {
-      case _Tab.live:
-        return _fLive.length;
-      case _Tab.movies:
-        return _fMovies.length;
-      case _Tab.series:
-        return _fSeries.length;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final hidden = Storage.hiddenCount(widget.portal.id);
@@ -303,60 +367,62 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: AuroraBackground(
-        intensity: 0.55,
+        intensity: 0.5,
         child: SafeArea(
-          child: Stack(
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 18, 32, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _header(hidden),
-                    const SizedBox(height: 12),
-                    if (!_loading && _error.isEmpty) ...[
-                      _tabBar(),
-                      const SizedBox(height: 10),
-                      if (_countries.length > 1)
-                        SizedBox(height: 36, child: _countryBar()),
-                      const SizedBox(height: 8),
-                      SizedBox(height: 36, child: _groupBar()),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_loading) Expanded(child: _loadingView()),
-                    if (!_loading && _error.isNotEmpty)
-                      Expanded(child: _errorView()),
-                    if (!_loading && _error.isEmpty)
-                      Expanded(child: _body()),
-                  ],
+              // ---------- BARRE LATERALE ----------
+              if (!_loading && _error.isEmpty)
+                CategorySidebar(
+                  title: _tab == _Tab.live
+                      ? 'Chaines'
+                      : (_tab == _Tab.movies ? 'Films' : 'Series'),
+                  items: _sideItems,
+                  selected: _group,
+                  onSelect: (id) => setState(() => _group = id),
+                  query: _query,
+                  onQuery: (v) => setState(() => _query = v),
                 ),
-              ),
 
-              // Mini televiseur, en bas a droite
-              if (_preview != null)
-                Positioned(
-                  right: 24,
-                  bottom: 20,
-                  child: MiniPlayer(
-                    channel: _preview,
-                    stalker: _stalker,
-                    onClose: () => setState(() => _preview = null),
-                    onExpand: () {
-                      final c = _preview;
-                      if (c == null) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PlayerScreen(
-                            channel: c,
-                            playlist: _fLive,
-                            stalker: _stalker,
-                          ),
-                        ),
-                      );
-                    },
+              // ---------- CONTENU ----------
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 24, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _header(hidden),
+                      const SizedBox(height: 12),
+
+                      if (!_loading && _error.isEmpty) ...[
+                        _tabBar(),
+                        const SizedBox(height: 10),
+                        if (_countries.length > 1)
+                          SizedBox(height: 34, child: _countryBar()),
+                        const SizedBox(height: 12),
+
+                        // Mini TV + EPG en haut (chaines)
+                        if (_tab == _Tab.live && _preview != null) ...[
+                          SizedBox(height: 196, child: _topPreview()),
+                          const SizedBox(height: 14),
+                        ],
+
+                        // Bandeau jaquette + resume en haut (films/series)
+                        if (_tab != _Tab.live && _hero != null) ...[
+                          _hero!,
+                          const SizedBox(height: 14),
+                        ],
+                      ],
+
+                      if (_loading) Expanded(child: _loadingView()),
+                      if (!_loading && _error.isNotEmpty)
+                        Expanded(child: _errorView()),
+                      if (!_loading && _error.isEmpty)
+                        Expanded(child: _body()),
+                    ],
                   ),
                 ),
+              ),
             ],
           ),
         ),
@@ -364,17 +430,76 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     );
   }
 
+  Widget? get _hero {
+    final m = _heroMovie;
+    if (m != null) {
+      return HeroBanner(
+        title: m.name,
+        poster: m.poster,
+        plot: m.plot,
+        rating: m.rating,
+        year: m.year,
+        genre: m.genre.isNotEmpty ? m.genre : m.group,
+        extra: m.cast.isNotEmpty ? 'Avec ${m.cast}' : '',
+        loading: _heroLoading,
+      );
+    }
+    final s = _heroSeries;
+    if (s != null) {
+      return HeroBanner(
+        title: s.name,
+        poster: s.poster,
+        plot: s.plot,
+        rating: s.rating,
+        year: s.year,
+        genre: s.genre.isNotEmpty ? s.genre : s.group,
+        extra: s.cast.isNotEmpty ? 'Avec ${s.cast}' : '',
+      );
+    }
+    return null;
+  }
+
+  /// Mini televiseur + guide TV, cote a cote en haut de l'ecran.
+  Widget _topPreview() {
+    final c = _preview!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MiniPlayer(
+          channel: c,
+          stalker: _stalker,
+          onClose: () => setState(() {
+            _preview = null;
+            _epg = [];
+          }),
+          onExpand: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PlayerScreen(
+                channel: c,
+                playlist: _fLive,
+                stalker: _stalker,
+                epg: _epgService,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: EpgPanel(
+            programs: _epg,
+            loading: _epgLoading,
+            channelName: c.name,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _header(int hidden) => Row(
         children: [
-          GradientTitle(widget.portal.name, size: 23),
-          const SizedBox(width: 12),
-          if (!_loading)
-            Text('$_count',
-                style: const TextStyle(
-                    color: NovaColors.textDim, fontSize: 12)),
+          GradientTitle(widget.portal.name, size: 22),
           const Spacer(),
-
-          // Mode suppression
           _iconChip(
             icon: _manageMode
                 ? Icons.check_circle_rounded
@@ -386,33 +511,14 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               if (_manageMode) _preview = null;
             }),
           ),
-          const SizedBox(width: 8),
-          if (hidden > 0)
+          if (hidden > 0) ...[
+            const SizedBox(width: 8),
             _iconChip(
               icon: Icons.restore_from_trash_rounded,
               label: '$hidden',
               onTap: _restoreAll,
             ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 220,
-            child: TextField(
-              onChanged: (v) => setState(() => _query = v),
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Rechercher',
-                hintStyle: const TextStyle(color: NovaColors.textDim),
-                prefixIcon: const Icon(Icons.search_rounded, size: 17),
-                isDense: true,
-                filled: true,
-                fillColor: NovaColors.surface.withOpacity(0.85),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
+          ],
         ],
       );
 
@@ -440,8 +546,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon,
-                  size: 15,
-                  color: active ? Colors.white : Colors.redAccent),
+                  size: 15, color: active ? Colors.white : Colors.redAccent),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
@@ -460,8 +565,8 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           const SizedBox(width: 9),
           _tabButton(_Tab.movies, Icons.movie_rounded, 'Films', _movies.length),
           const SizedBox(width: 9),
-          _tabButton(
-              _Tab.series, Icons.video_library_rounded, 'Series', _series.length),
+          _tabButton(_Tab.series, Icons.video_library_rounded, 'Series',
+              _series.length),
         ],
       );
 
@@ -472,7 +577,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       onTap: empty ? null : () => _switchTab(t),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           gradient: sel ? NovaColors.brand : null,
           color: sel ? null : NovaColors.surface.withOpacity(0.8),
@@ -529,7 +634,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               decoration: BoxDecoration(
                 gradient: sel ? NovaColors.brand : null,
                 color: sel ? null : NovaColors.surface.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(17),
                 border: Border.all(
                   color: sel
                       ? Colors.transparent
@@ -540,16 +645,16 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (c.flag.isNotEmpty) ...[
-                    Text(c.flag, style: const TextStyle(fontSize: 14)),
+                    Text(c.flag, style: const TextStyle(fontSize: 13)),
                     const SizedBox(width: 6),
                   ] else ...[
                     const Icon(Icons.public_rounded,
-                        size: 13, color: NovaColors.cyan),
+                        size: 12, color: NovaColors.cyan),
                     const SizedBox(width: 6),
                   ],
                   Text(c.label,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                       )),
                 ],
@@ -558,38 +663,6 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           );
         },
       );
-
-  Widget _groupBar() {
-    final gs = _groups;
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemCount: gs.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
-      itemBuilder: (context, i) {
-        final g = gs[i];
-        final sel = g == _group;
-        return GestureDetector(
-          onTap: () => setState(() => _group = g),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: sel
-                  ? NovaColors.violet.withOpacity(0.85)
-                  : NovaColors.surface.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Text(g,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                )),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _loadingView() => const Center(
         child: Column(
@@ -640,16 +713,30 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             style: TextStyle(color: NovaColors.textDim)),
       );
 
+  Widget _deleteBadge() => Positioned(
+        top: 6,
+        right: 6,
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(
+            color: Colors.redAccent,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.close_rounded,
+              size: 13, color: Colors.white),
+        ),
+      );
+
   Widget _liveGrid() {
     final items = _fLive;
     if (items.isEmpty) return _empty();
     return GridView.builder(
-      padding: EdgeInsets.only(bottom: _preview != null ? 250 : 12),
+      padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 190,
+        maxCrossAxisExtent: 185,
         childAspectRatio: 1.32,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
+        crossAxisSpacing: 13,
+        mainAxisSpacing: 13,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -716,20 +803,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                           fontSize: 7.5, fontWeight: FontWeight.w800)),
                 ),
               ),
-            if (_manageMode)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close_rounded,
-                      size: 13, color: Colors.white),
-                ),
-              ),
+            if (_manageMode) _deleteBadge(),
           ],
         );
       },
@@ -740,12 +814,12 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     final items = _fMovies;
     if (items.isEmpty) return _empty();
     return GridView.builder(
-      padding: EdgeInsets.only(bottom: _preview != null ? 250 : 12),
+      padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 165,
+        maxCrossAxisExtent: 158,
         childAspectRatio: 0.56,
-        crossAxisSpacing: 15,
-        mainAxisSpacing: 18,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 16,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -758,6 +832,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               poster: m.poster,
               rating: m.rating,
               year: m.year,
+              onFocus: () => _hoverMovie(m),
               onTap: () {
                 if (_manageMode) {
                   _confirmHide(m.id, m.name);
@@ -772,20 +847,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                 );
               },
             ),
-            if (_manageMode)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close_rounded,
-                      size: 13, color: Colors.white),
-                ),
-              ),
+            if (_manageMode) _deleteBadge(),
           ],
         );
       },
@@ -797,12 +859,12 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     if (items.isEmpty) return _empty();
     final x = _xtream;
     return GridView.builder(
-      padding: EdgeInsets.only(bottom: _preview != null ? 250 : 12),
+      padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 165,
+        maxCrossAxisExtent: 158,
         childAspectRatio: 0.56,
-        crossAxisSpacing: 15,
-        mainAxisSpacing: 18,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 16,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -815,6 +877,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               poster: s.poster,
               rating: s.rating,
               year: s.year,
+              onFocus: () => _hoverSeries(s),
               onTap: () {
                 if (_manageMode) {
                   _confirmHide(s.id, s.name);
@@ -829,20 +892,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                 );
               },
             ),
-            if (_manageMode)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close_rounded,
-                      size: 13, color: Colors.white),
-                ),
-              ),
+            if (_manageMode) _deleteBadge(),
           ],
         );
       },

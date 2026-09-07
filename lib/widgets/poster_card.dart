@@ -11,6 +11,7 @@ class PosterCard extends StatefulWidget {
   final String rating;
   final String year;
   final VoidCallback onTap;
+  final VoidCallback? onFocus;
   final bool autofocus;
 
   const PosterCard({
@@ -18,6 +19,7 @@ class PosterCard extends StatefulWidget {
     required this.title,
     required this.poster,
     required this.onTap,
+    this.onFocus,
     this.rating = '',
     this.year = '',
     this.autofocus = false,
@@ -34,7 +36,10 @@ class _PosterCardState extends State<PosterCard> {
   Widget build(BuildContext context) {
     return Focus(
       autofocus: widget.autofocus,
-      onFocusChange: (v) => setState(() => _f = v),
+      onFocusChange: (v) {
+        setState(() => _f = v);
+        if (v) widget.onFocus?.call();
+      },
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),

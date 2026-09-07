@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../models/models.dart';
+import '../services/epg_service.dart';
 import '../services/stalker_service.dart';
 import '../services/storage.dart';
 import '../theme/nova_theme.dart';
@@ -63,12 +64,14 @@ class PlayerScreen extends StatefulWidget {
   final Channel channel;
   final List<Channel> playlist;
   final StalkerService? stalker;
+  final EpgService? epg;
 
   const PlayerScreen({
     super.key,
     required this.channel,
     required this.playlist,
     this.stalker,
+    this.epg,
   });
 
   @override
@@ -90,6 +93,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   BoxFit _fit = BoxFit.contain;
   int _pictureIndex = 0;
   Timer? _hide;
+  List<EpgProgram> _programs = [];
 
   /// Profils d'image. Standard laisse le flux intact.
   static const List<_Picture> _pictures = [
@@ -163,6 +167,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _controller = ctrl;
         _loading = false;
       });
+      _loadEpg(c);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -170,6 +175,17 @@ class _PlayerScreenState extends State<PlayerScreen>
         _error = e.toString().replaceFirst('Exception: ', '');
       });
     }
+  }
+
+  Future<void> _loadEpg(Channel c) async {
+    setState(() => _programs = []);
+    final svc = widget.epg;
+    if (svc == null) return;
+    final sid = c.id.startsWith('xt_live_') ? c.id.substring(8) : '';
+    if (sid.isEmpty) return;
+    final p = await svc.forStream(sid);
+    if (!mounted || _current.id != c.id) return;
+    setState(() => _programs = p);
   }
 
   /// Le mode Boost pousse le gain au-dela de 100% pour les flux trop faibles.
@@ -480,6 +496,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                       Text(_current.group,
                           style: const TextStyle(
                               color: NovaColors.textDim, fontSize: 12)),
+                      if (_nowNext != null) ...[
+                        const SizedBox(height: 7),
+                        _nowNext!,
+                      ],
                     ],
                   ),
                 ),
@@ -521,6 +541,81 @@ class _PlayerScreenState extends State<PlayerScreen>
           ),
         ],
       );
+
+  /// Programme en cours et suivant, facon guide TV.
+  Widget? get _nowNext {
+    if (_programs.isEmpty) return null;
+    EpgProgram? now;
+    EpgProgram? next;
+    for (final p in _programs) {
+      if (p.isNow) {
+        now = p;
+      } else if (now != null && next == null && p.start.isAfter(now.start)) {
+        next = p;
+      }
+    }
+    now ??= _programs.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: NovaColors.brand,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text('MAINTENANT',
+                  style:
+                      TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: 8),
+            Text(now.range,
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: NovaColors.cyan,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                now.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        SizedBox(
+          width: 340,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: now.progress,
+              minHeight: 3,
+              backgroundColor: Colors.white.withOpacity(0.15),
+              valueColor: const AlwaysStoppedAnimation(NovaColors.cyan),
+            ),
+          ),
+        ),
+        if (next != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            'Ensuite ${next.startLabel}  -  ${next.title}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontSize: 10.5, color: NovaColors.textDim),
+          ),
+        ],
+      ],
+    );
+  }
 
   String _fitLabel() {
     switch (_fit) {
