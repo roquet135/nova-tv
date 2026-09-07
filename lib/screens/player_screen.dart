@@ -2,8 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/models.dart';
 import '../services/stalker_service.dart';
@@ -13,10 +12,10 @@ import '../theme/nova_theme.dart';
 /// Lecteur NOVA.
 ///
 /// Innovations image et son :
-///  - AMBILIGHT : un halo colore anime derriere l ecran, qui respire.
-///  - EGALISEUR VISUEL : barres reactives au temps de lecture.
-///  - MODES SONORES : normal, voix claire, nuit, cinema (via mpv audio filters).
-///  - RATIO ADAPTATIF et ZOOM pour remplir les televiseurs 21:9.
+///  - AMBILIGHT : halo colore anime derriere l ecran, qui respire.
+///  - EGALISEUR VISUEL : barres animees, signature NOVA.
+///  - RATIO ADAPTATIF : Original / Plein ecran / Etire (TV 21:9).
+///  - VOLUME et zapping a la telecommande.
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
   final List<Channel> playlist;
@@ -35,8 +34,7 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen>
     with TickerProviderStateMixin {
-  late final Player _player;
-  late final VideoController _video;
+  VideoPlayerController? _controller;
   late final AnimationController _pulse;
 
   late Channel _current;
@@ -44,28 +42,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   String _error = '';
   bool _ui = true;
   bool _ambilight = true;
-  int _audioMode = 0;
+  double _volume = 1.0;
   BoxFit _fit = BoxFit.contain;
   Timer? _hide;
-
-  static const _audioModes = [
-    ('Normal', ''),
-    ('Voix claire', 'lavfi=[equalizer=f=2500:t=q:w=1.4:g=6,equalizer=f=180:t=q:w=1:g=-4]'),
-    ('Nuit', 'lavfi=[acompressor=threshold=-24dB:ratio=6:attack=10:release=250,loudnorm=I=-18]'),
-    ('Cinema', 'lavfi=[bass=g=6:f=90,treble=g=3:f=9000,extrastereo=m=1.4]'),
-  ];
 
   @override
   void initState() {
     super.initState();
     _current = widget.channel;
-    _player = Player(
-      configuration: const PlayerConfiguration(
-        bufferSize: 32 * 1024 * 1024,
-        title: 'NOVA TV',
-      ),
-    );
-    _video = VideoController(_player);
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
@@ -78,7 +62,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   void dispose() {
     _hide?.cancel();
     _pulse.dispose();
-    _player.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -88,6 +72,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       _error = '';
       _current = c;
     });
+
+    final old = _controller;
+    _controller = null;
+    await old?.dispose();
+
     try {
       var url = c.streamUrl;
       // Stalker : la commande doit etre convertie en vraie URL.
@@ -96,9 +85,28 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (url.isEmpty) throw Exception('Flux indisponible');
 
-      await _player.open(Media(url), play: true);
+      final ctrl = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
+        httpHeaders: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+        },
+      );
+
+      await ctrl.initialize().timeout(const Duration(seconds: 45));
+      await ctrl.setVolume(_volume);
+      await ctrl.play();
       await Storage.setLastChannel(c.id);
-      if (mounted) setState(() => _loading = false);
+
+      if (!mounted) {
+        await ctrl.dispose();
+        return;
+      }
+      setState(() {
+        _controller = ctrl;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -124,23 +132,24 @@ class _PlayerScreenState extends State<PlayerScreen>
     final list = widget.playlist;
     if (list.isEmpty) return;
     final i = list.indexWhere((e) => e.id == _current.id);
-    final next = ((i < 0 ? 0 : i) + delta) % list.length;
-    _play(list[next < 0 ? list.length - 1 : next]);
+    var next = (i < 0 ? 0 : i) + delta;
+    if (next < 0) next = list.length - 1;
+    if (next >= list.length) next = 0;
+    _play(list[next]);
     _wake();
   }
 
-  Future<void> _cycleAudio() async {
-    setState(() => _audioMode = (_audioMode + 1) % _audioModes.length);
-    final filter = _audioModes[_audioMode].$2;
-    try {
-      // media_kit expose la plateforme native mpv pour les filtres audio.
-      final native = _player.platform;
-      if (native is NativePlayer) {
-        await native.setProperty('af', filter);
-      }
-    } catch (_) {
-      // Filtre non supporte : on garde le son normal, sans casser la lecture.
-    }
+  Future<void> _setVolume(double v) async {
+    final nv = v.clamp(0.0, 1.0);
+    setState(() => _volume = nv);
+    await _controller?.setVolume(nv);
+    _wake();
+  }
+
+  void _togglePlay() {
+    final c = _controller;
+    if (c == null) return;
+    c.value.isPlaying ? c.pause() : c.play();
     _wake();
   }
 
@@ -162,15 +171,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       _zap(1);
       return KeyEventResult.handled;
     }
+    if (k == LogicalKeyboardKey.arrowRight) {
+      _setVolume(_volume + 0.1);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowLeft) {
+      _setVolume(_volume - 0.1);
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.select ||
         k == LogicalKeyboardKey.enter ||
         k == LogicalKeyboardKey.space) {
-      _player.playOrPause();
-      _wake();
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.keyA) {
-      _cycleAudio();
+      _togglePlay();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.keyZ) {
@@ -188,6 +200,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ctrl = _controller;
     return Focus(
       autofocus: true,
       onKeyEvent: _onKey,
@@ -199,22 +212,23 @@ class _PlayerScreenState extends State<PlayerScreen>
             fit: StackFit.expand,
             children: [
               if (_ambilight) _ambilightLayer(),
-              Center(
-                child: Video(
-                  controller: _video,
-                  fit: _fit,
-                  controls: NoVideoControls,
+              if (ctrl != null && ctrl.value.isInitialized)
+                Center(
+                  child: FittedBox(
+                    fit: _fit,
+                    child: SizedBox(
+                      width: ctrl.value.size.width,
+                      height: ctrl.value.size.height,
+                      child: VideoPlayer(ctrl),
+                    ),
+                  ),
                 ),
-              ),
               if (_loading) _loadingLayer(),
               if (_error.isNotEmpty) _errorLayer(),
               AnimatedOpacity(
                 opacity: _ui ? 1 : 0,
                 duration: const Duration(milliseconds: 300),
-                child: IgnorePointer(
-                  ignoring: !_ui,
-                  child: _overlay(),
-                ),
+                child: IgnorePointer(ignoring: !_ui, child: _overlay()),
               ),
             ],
           ),
@@ -223,7 +237,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  /// Halo colore anime derriere la video : le fameux effet ambilight.
+  /// Halo colore anime derriere la video : effet ambilight.
   Widget _ambilightLayer() => AnimatedBuilder(
         animation: _pulse,
         builder: (context, _) {
@@ -263,23 +277,37 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _errorLayer() => Container(
         color: Colors.black87,
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.signal_wifi_bad_rounded,
-                  size: 54, color: Colors.redAccent),
-              const SizedBox(height: 14),
-              Text(_error,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white)),
-              const SizedBox(height: 18),
-              ElevatedButton.icon(
-                autofocus: true,
-                onPressed: () => _play(_current),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Reessayer'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.signal_wifi_bad_rounded,
+                    size: 54, color: Colors.redAccent),
+                const SizedBox(height: 14),
+                Text(_error,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white)),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      autofocus: true,
+                      onPressed: () => _play(_current),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Reessayer'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => _zap(1),
+                      icon: const Icon(Icons.skip_next_rounded),
+                      label: const Text('Chaine suivante'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -342,8 +370,8 @@ class _PlayerScreenState extends State<PlayerScreen>
               runSpacing: 10,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _chip(Icons.graphic_eq_rounded,
-                    'Son : ${_audioModes[_audioMode].$1}   (A)'),
+                _chip(Icons.volume_up_rounded,
+                    'Volume ${(_volume * 100).round()}%   (gauche / droite)'),
                 _chip(Icons.aspect_ratio_rounded,
                     'Image : ${_fitLabel()}   (Z)'),
                 _chip(Icons.lightbulb_outline_rounded,

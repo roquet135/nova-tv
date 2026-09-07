@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Identite visuelle NOVA : cyan electrique -> violet, fond quasi noir.
 class NovaColors {
@@ -34,10 +33,6 @@ class NovaTheme {
         primary: NovaColors.cyan,
         secondary: NovaColors.violet,
         surface: NovaColors.surface,
-      ),
-      textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
-        bodyColor: NovaColors.text,
-        displayColor: NovaColors.text,
       ),
       cardColor: NovaColors.surface,
       dividerColor: Colors.white10,

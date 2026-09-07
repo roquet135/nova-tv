@@ -10,10 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Lecteur video : libmpv, gere HLS, TS, RTMP, DASH + passthrough audio
-  media_kit: 1.1.11
-  media_kit_video: 1.2.5
-  media_kit_libs_video: 1.0.5
+  # Lecteur video officiel Flutter (ExoPlayer sous Android).
+  # Gere HLS (.m3u8), DASH, MP4, TS. Compile sans configuration NDK.
+  video_player: 2.9.2
 
   # Reseau
   http: 1.2.2
@@ -25,7 +24,6 @@ dependencies:
 
   # Interface
   cached_network_image: 3.4.1
-  google_fonts: 6.2.1
 
 dev_dependencies:
   flutter_test:
