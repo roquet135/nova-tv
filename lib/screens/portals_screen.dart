@@ -86,7 +86,7 @@ class _PortalsScreenState extends State<PortalsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.live_tv_rounded,
-                size: 72, color: NovaColors.violet.withValues(alpha: 0.5)),
+                size: 72, color: NovaColors.violet.withOpacity(0.5)),
             const SizedBox(height: 20),
             const Text(
               'Aucun abonnement pour le moment',

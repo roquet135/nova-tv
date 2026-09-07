@@ -9,13 +9,42 @@ import '../services/stalker_service.dart';
 import '../services/storage.dart';
 import '../theme/nova_theme.dart';
 
+// --- Intentions de la telecommande ---
+class _ZapUpIntent extends Intent {
+  const _ZapUpIntent();
+}
+
+class _ZapDownIntent extends Intent {
+  const _ZapDownIntent();
+}
+
+class _VolUpIntent extends Intent {
+  const _VolUpIntent();
+}
+
+class _VolDownIntent extends Intent {
+  const _VolDownIntent();
+}
+
+class _PlayPauseIntent extends Intent {
+  const _PlayPauseIntent();
+}
+
+class _FitIntent extends Intent {
+  const _FitIntent();
+}
+
+class _AmbilightIntent extends Intent {
+  const _AmbilightIntent();
+}
+
 /// Lecteur NOVA.
 ///
 /// Innovations image et son :
 ///  - AMBILIGHT : halo colore anime derriere l ecran, qui respire.
 ///  - EGALISEUR VISUEL : barres animees, signature NOVA.
 ///  - RATIO ADAPTATIF : Original / Plein ecran / Etire (TV 21:9).
-///  - VOLUME et zapping a la telecommande.
+///  - Volume et zapping directement a la telecommande.
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
   final List<Channel> playlist;
@@ -87,7 +116,6 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       final ctrl = VideoPlayerController.networkUrl(
         Uri.parse(url),
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
         httpHeaders: const {
           'User-Agent':
               'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
@@ -140,7 +168,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _setVolume(double v) async {
-    final nv = v.clamp(0.0, 1.0);
+    final nv = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
     setState(() => _volume = nv);
     await _controller?.setVolume(nv);
     _wake();
@@ -149,7 +177,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _togglePlay() {
     final c = _controller;
     if (c == null) return;
-    c.value.isPlaying ? c.pause() : c.play();
+    if (c.value.isPlaying) {
+      c.pause();
+    } else {
+      c.play();
+    }
     _wake();
   }
 
@@ -159,78 +191,100 @@ class _PlayerScreenState extends State<PlayerScreen>
     _wake();
   }
 
-  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
-    if (e is! KeyDownEvent) return KeyEventResult.ignored;
-    final k = e.logicalKey;
-
-    if (k == LogicalKeyboardKey.arrowUp) {
-      _zap(-1);
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.arrowDown) {
-      _zap(1);
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.arrowRight) {
-      _setVolume(_volume + 0.1);
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.arrowLeft) {
-      _setVolume(_volume - 0.1);
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.select ||
-        k == LogicalKeyboardKey.enter ||
-        k == LogicalKeyboardKey.space) {
-      _togglePlay();
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.keyZ) {
-      _cycleFit();
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.keyL) {
-      setState(() => _ambilight = !_ambilight);
-      _wake();
-      return KeyEventResult.handled;
-    }
-    _wake();
-    return KeyEventResult.ignored;
-  }
-
   @override
   Widget build(BuildContext context) {
     final ctrl = _controller;
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _onKey,
-      child: GestureDetector(
-        onTap: _wake,
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (_ambilight) _ambilightLayer(),
-              if (ctrl != null && ctrl.value.isInitialized)
-                Center(
-                  child: FittedBox(
-                    fit: _fit,
-                    child: SizedBox(
-                      width: ctrl.value.size.width,
-                      height: ctrl.value.size.height,
-                      child: VideoPlayer(ctrl),
+
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.arrowUp): _ZapUpIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowDown): _ZapDownIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowRight): _VolUpIntent(),
+        SingleActivator(LogicalKeyboardKey.arrowLeft): _VolDownIntent(),
+        SingleActivator(LogicalKeyboardKey.select): _PlayPauseIntent(),
+        SingleActivator(LogicalKeyboardKey.enter): _PlayPauseIntent(),
+        SingleActivator(LogicalKeyboardKey.space): _PlayPauseIntent(),
+        SingleActivator(LogicalKeyboardKey.mediaPlayPause): _PlayPauseIntent(),
+        SingleActivator(LogicalKeyboardKey.keyZ): _FitIntent(),
+        SingleActivator(LogicalKeyboardKey.keyL): _AmbilightIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _ZapUpIntent: CallbackAction<_ZapUpIntent>(
+            onInvoke: (i) {
+              _zap(-1);
+              return null;
+            },
+          ),
+          _ZapDownIntent: CallbackAction<_ZapDownIntent>(
+            onInvoke: (i) {
+              _zap(1);
+              return null;
+            },
+          ),
+          _VolUpIntent: CallbackAction<_VolUpIntent>(
+            onInvoke: (i) {
+              _setVolume(_volume + 0.1);
+              return null;
+            },
+          ),
+          _VolDownIntent: CallbackAction<_VolDownIntent>(
+            onInvoke: (i) {
+              _setVolume(_volume - 0.1);
+              return null;
+            },
+          ),
+          _PlayPauseIntent: CallbackAction<_PlayPauseIntent>(
+            onInvoke: (i) {
+              _togglePlay();
+              return null;
+            },
+          ),
+          _FitIntent: CallbackAction<_FitIntent>(
+            onInvoke: (i) {
+              _cycleFit();
+              return null;
+            },
+          ),
+          _AmbilightIntent: CallbackAction<_AmbilightIntent>(
+            onInvoke: (i) {
+              setState(() => _ambilight = !_ambilight);
+              _wake();
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: GestureDetector(
+            onTap: _wake,
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_ambilight) _ambilightLayer(),
+                  if (ctrl != null && ctrl.value.isInitialized)
+                    Center(
+                      child: FittedBox(
+                        fit: _fit,
+                        child: SizedBox(
+                          width: ctrl.value.size.width,
+                          height: ctrl.value.size.height,
+                          child: VideoPlayer(ctrl),
+                        ),
+                      ),
                     ),
+                  if (_loading) _loadingLayer(),
+                  if (_error.isNotEmpty) _errorLayer(),
+                  AnimatedOpacity(
+                    opacity: _ui ? 1 : 0,
+                    duration: const Duration(milliseconds: 300),
+                    child: IgnorePointer(ignoring: !_ui, child: _overlay()),
                   ),
-                ),
-              if (_loading) _loadingLayer(),
-              if (_error.isNotEmpty) _errorLayer(),
-              AnimatedOpacity(
-                opacity: _ui ? 1 : 0,
-                duration: const Duration(milliseconds: 300),
-                child: IgnorePointer(ignoring: !_ui, child: _overlay()),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -248,8 +302,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 center: Alignment(-0.6 + t * 1.2, -0.6 + t * 0.8),
                 radius: 1.1 + t * 0.35,
                 colors: [
-                  NovaColors.violet.withValues(alpha: 0.32 + t * 0.12),
-                  NovaColors.cyan.withValues(alpha: 0.16),
+                  NovaColors.violet.withOpacity(0.32 + t * 0.12),
+                  NovaColors.cyan.withOpacity(0.16),
                   Colors.black,
                 ],
                 stops: const [0.0, 0.45, 1.0],
@@ -397,9 +451,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _chip(IconData i, String t) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          border: Border.all(color: Colors.white.withOpacity(0.12)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

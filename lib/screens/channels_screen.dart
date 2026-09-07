@@ -253,7 +253,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                   child: c.logo.isEmpty
                       ? Icon(Icons.live_tv_rounded,
                           size: 40,
-                          color: NovaColors.violet.withValues(alpha: 0.6))
+                          color: NovaColors.violet.withOpacity(0.6))
                       : CachedNetworkImage(
                           imageUrl: c.logo,
                           fit: BoxFit.contain,
