@@ -66,7 +66,7 @@ class Portal {
       );
 }
 
-/// Une chaine, un film ou un episode.
+/// Une chaine de television en direct.
 class Channel {
   final String id;
   final String name;
@@ -100,5 +100,110 @@ class Channel {
         logo: (m['logo'] ?? '') as String,
         group: (m['group'] ?? 'General') as String,
         epgId: (m['epgId'] ?? '') as String,
+      );
+}
+
+/// Un film (VOD) avec sa jaquette et ses informations.
+class Movie {
+  final String id;
+  final String streamId;
+  final String name;
+  final String poster;
+  final String group;
+  final String streamUrl;
+  final String rating;
+  final String year;
+  final String duration;
+
+  // Charges a la demande dans la fiche detaillee
+  String plot;
+  String cast;
+  String director;
+  String genre;
+
+  Movie({
+    required this.id,
+    required this.streamId,
+    required this.name,
+    required this.streamUrl,
+    this.poster = '',
+    this.group = 'Films',
+    this.rating = '',
+    this.year = '',
+    this.duration = '',
+    this.plot = '',
+    this.cast = '',
+    this.director = '',
+    this.genre = '',
+  });
+
+  /// Convertit le film en Channel pour le lecteur.
+  Channel toChannel() => Channel(
+        id: id,
+        name: name,
+        streamUrl: streamUrl,
+        logo: poster,
+        group: group,
+      );
+}
+
+/// Une serie, contenant des saisons et des episodes.
+class Series {
+  final String id;
+  final String seriesId;
+  final String name;
+  final String poster;
+  final String group;
+  final String rating;
+  final String year;
+
+  String plot;
+  String cast;
+  String director;
+  String genre;
+
+  Series({
+    required this.id,
+    required this.seriesId,
+    required this.name,
+    this.poster = '',
+    this.group = 'Series',
+    this.rating = '',
+    this.year = '',
+    this.plot = '',
+    this.cast = '',
+    this.director = '',
+    this.genre = '',
+  });
+}
+
+/// Un episode d'une serie.
+class Episode {
+  final String id;
+  final String name;
+  final int season;
+  final int episode;
+  final String streamUrl;
+  final String plot;
+  final String image;
+  final String duration;
+
+  const Episode({
+    required this.id,
+    required this.name,
+    required this.season,
+    required this.episode,
+    required this.streamUrl,
+    this.plot = '',
+    this.image = '',
+    this.duration = '',
+  });
+
+  Channel toChannel() => Channel(
+        id: id,
+        name: 'S${season}E$episode - $name',
+        streamUrl: streamUrl,
+        logo: image,
+        group: 'Series',
       );
 }
