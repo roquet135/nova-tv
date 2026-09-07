@@ -6,12 +6,14 @@ class Storage {
   static const _portals = 'portals';
   static const _favs = 'favorites';
   static const _prefs = 'prefs';
+  static const _hidden = 'hidden';
 
   static Future<void> init() async {
     await Hive.initFlutter();
     await Hive.openBox(_portals);
     await Hive.openBox(_favs);
     await Hive.openBox(_prefs);
+    await Hive.openBox(_hidden);
   }
 
   // --- Portails ---
@@ -26,7 +28,37 @@ class Storage {
   static Future<void> savePortal(Portal p) =>
       Hive.box(_portals).put(p.id, p.toMap());
 
-  static Future<void> deletePortal(String id) => Hive.box(_portals).delete(id);
+  static Future<void> deletePortal(String id) async {
+    await Hive.box(_portals).delete(id);
+    // On nettoie aussi les chaines masquees de ce portail.
+    final box = Hive.box(_hidden);
+    final keys = box.keys.where((k) => '$k'.startsWith('$id::')).toList();
+    await box.deleteAll(keys);
+  }
+
+  // --- Chaines masquees (liens morts) ---
+  static String _hk(String portalId, String channelId) =>
+      '$portalId::$channelId';
+
+  static bool isHidden(String portalId, String channelId) =>
+      Hive.box(_hidden).containsKey(_hk(portalId, channelId));
+
+  static Future<void> hide(String portalId, String channelId) =>
+      Hive.box(_hidden).put(_hk(portalId, channelId), true);
+
+  static Future<void> unhide(String portalId, String channelId) =>
+      Hive.box(_hidden).delete(_hk(portalId, channelId));
+
+  static int hiddenCount(String portalId) => Hive.box(_hidden)
+      .keys
+      .where((k) => '$k'.startsWith('$portalId::'))
+      .length;
+
+  static Future<void> clearHidden(String portalId) async {
+    final box = Hive.box(_hidden);
+    final keys = box.keys.where((k) => '$k'.startsWith('$portalId::')).toList();
+    await box.deleteAll(keys);
+  }
 
   // --- Favoris ---
   static bool isFavorite(String channelId) =>
@@ -52,6 +84,18 @@ class Storage {
       Hive.box(_prefs).get(key, defaultValue: fallback) as bool;
 
   static Future<void> setBool(String key, bool value) =>
+      Hive.box(_prefs).put(key, value);
+
+  static String getString(String key, {String fallback = ''}) =>
+      Hive.box(_prefs).get(key, defaultValue: fallback) as String;
+
+  static Future<void> setString(String key, String value) =>
+      Hive.box(_prefs).put(key, value);
+
+  static double getDouble(String key, {double fallback = 0}) =>
+      (Hive.box(_prefs).get(key, defaultValue: fallback) as num).toDouble();
+
+  static Future<void> setDouble(String key, double value) =>
       Hive.box(_prefs).put(key, value);
 
   static Future<void> setLastChannel(String id) =>

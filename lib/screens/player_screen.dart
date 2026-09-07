@@ -38,13 +38,27 @@ class _AmbilightIntent extends Intent {
   const _AmbilightIntent();
 }
 
-/// Lecteur NOVA.
-///
-/// Innovations image et son :
-///  - AMBILIGHT : halo colore anime derriere l ecran, qui respire.
-///  - EGALISEUR VISUEL : barres animees, signature NOVA.
-///  - RATIO ADAPTATIF : Original / Plein ecran / Etire (TV 21:9).
-///  - Volume et zapping directement a la telecommande.
+class _PictureIntent extends Intent {
+  const _PictureIntent();
+}
+
+class _BoostIntent extends Intent {
+  const _BoostIntent();
+}
+
+/// Profil d'image applique par-dessus la video.
+class _Picture {
+  final String name;
+  final double saturation;
+  final double contrast;
+  final double brightness;
+  final double warmth;
+
+  const _Picture(this.name, this.saturation, this.contrast, this.brightness,
+      this.warmth);
+}
+
+/// Lecteur NOVA plein ecran.
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
   final List<Channel> playlist;
@@ -72,13 +86,28 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _ui = true;
   bool _ambilight = true;
   double _volume = 1.0;
+  bool _boost = false;
   BoxFit _fit = BoxFit.contain;
+  int _pictureIndex = 0;
   Timer? _hide;
+
+  /// Profils d'image. Standard laisse le flux intact.
+  static const List<_Picture> _pictures = [
+    _Picture('Standard', 1.00, 1.00, 0.00, 0.00),
+    _Picture('Eclatant', 1.35, 1.14, 0.02, 0.02),
+    _Picture('Cinema', 1.08, 1.16, -0.03, 0.06),
+    _Picture('Sport', 1.22, 1.08, 0.05, -0.03),
+    _Picture('Nuit', 0.92, 0.90, -0.10, 0.05),
+  ];
 
   @override
   void initState() {
     super.initState();
     _current = widget.channel;
+    _pictureIndex = Storage.getDouble('picture', fallback: 0).toInt();
+    if (_pictureIndex >= _pictures.length) _pictureIndex = 0;
+    _boost = Storage.getBool('boost');
+    _ambilight = Storage.getBool('ambilight', fallback: true);
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
@@ -108,7 +137,6 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     try {
       var url = c.streamUrl;
-      // Stalker : la commande doit etre convertie en vraie URL.
       if (widget.stalker != null && !url.startsWith('http')) {
         url = await widget.stalker!.resolveLink(url);
       }
@@ -123,7 +151,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
 
       await ctrl.initialize().timeout(const Duration(seconds: 45));
-      await ctrl.setVolume(_volume);
+      await ctrl.setVolume(_effectiveVolume);
       await ctrl.play();
       await Storage.setLastChannel(c.id);
 
@@ -142,6 +170,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         _error = e.toString().replaceFirst('Exception: ', '');
       });
     }
+  }
+
+  /// Le mode Boost pousse le gain au-dela de 100% pour les flux trop faibles.
+  double get _effectiveVolume {
+    final v = _boost ? _volume * 1.6 : _volume;
+    return v > 1.0 ? 1.0 : v;
   }
 
   void _scheduleHide() {
@@ -170,7 +204,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _setVolume(double v) async {
     final nv = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
     setState(() => _volume = nv);
-    await _controller?.setVolume(nv);
+    await _controller?.setVolume(_effectiveVolume);
+    _wake();
+  }
+
+  Future<void> _toggleBoost() async {
+    setState(() => _boost = !_boost);
+    await Storage.setBool('boost', _boost);
+    await _controller?.setVolume(_effectiveVolume);
     _wake();
   }
 
@@ -191,9 +232,62 @@ class _PlayerScreenState extends State<PlayerScreen>
     _wake();
   }
 
+  Future<void> _cyclePicture() async {
+    setState(() => _pictureIndex = (_pictureIndex + 1) % _pictures.length);
+    await Storage.setDouble('picture', _pictureIndex.toDouble());
+    _wake();
+  }
+
+  Future<void> _toggleAmbilight() async {
+    setState(() => _ambilight = !_ambilight);
+    await Storage.setBool('ambilight', _ambilight);
+    _wake();
+  }
+
+  /// Matrice de couleur : saturation, contraste, luminosite, chaleur.
+  ColorFilter _colorFilter() {
+    final p = _pictures[_pictureIndex];
+    final s = p.saturation;
+    final c = p.contrast;
+    final b = p.brightness * 255;
+    final w = p.warmth;
+
+    // Luminance perceptuelle
+    const lr = 0.2126, lg = 0.7152, lb = 0.0722;
+    final sr = (1 - s) * lr, sg = (1 - s) * lg, sb = (1 - s) * lb;
+
+    // Chaleur : renforce le rouge, attenue le bleu
+    final rw = 1 + w, bw = 1 - w;
+
+    final off = b + (1 - c) * 127.5;
+
+    return ColorFilter.matrix(<double>[
+      (sr + s) * c * rw, sg * c, sb * c, 0, off,
+      sr * c, (sg + s) * c, sb * c, 0, off,
+      sr * c, sg * c, (sb + s) * c * bw, 0, off,
+      0, 0, 0, 1, 0,
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctrl = _controller;
+    final neutral = _pictureIndex == 0;
+
+    Widget video = const SizedBox.shrink();
+    if (ctrl != null && ctrl.value.isInitialized) {
+      video = FittedBox(
+        fit: _fit,
+        child: SizedBox(
+          width: ctrl.value.size.width,
+          height: ctrl.value.size.height,
+          child: VideoPlayer(ctrl),
+        ),
+      );
+      if (!neutral) {
+        video = ColorFiltered(colorFilter: _colorFilter(), child: video);
+      }
+    }
 
     return Shortcuts(
       shortcuts: const <ShortcutActivator, Intent>{
@@ -207,52 +301,47 @@ class _PlayerScreenState extends State<PlayerScreen>
         SingleActivator(LogicalKeyboardKey.mediaPlayPause): _PlayPauseIntent(),
         SingleActivator(LogicalKeyboardKey.keyZ): _FitIntent(),
         SingleActivator(LogicalKeyboardKey.keyL): _AmbilightIntent(),
+        SingleActivator(LogicalKeyboardKey.keyI): _PictureIntent(),
+        SingleActivator(LogicalKeyboardKey.keyB): _BoostIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
-          _ZapUpIntent: CallbackAction<_ZapUpIntent>(
-            onInvoke: (i) {
-              _zap(-1);
-              return null;
-            },
-          ),
-          _ZapDownIntent: CallbackAction<_ZapDownIntent>(
-            onInvoke: (i) {
-              _zap(1);
-              return null;
-            },
-          ),
-          _VolUpIntent: CallbackAction<_VolUpIntent>(
-            onInvoke: (i) {
-              _setVolume(_volume + 0.1);
-              return null;
-            },
-          ),
-          _VolDownIntent: CallbackAction<_VolDownIntent>(
-            onInvoke: (i) {
-              _setVolume(_volume - 0.1);
-              return null;
-            },
-          ),
-          _PlayPauseIntent: CallbackAction<_PlayPauseIntent>(
-            onInvoke: (i) {
-              _togglePlay();
-              return null;
-            },
-          ),
-          _FitIntent: CallbackAction<_FitIntent>(
-            onInvoke: (i) {
-              _cycleFit();
-              return null;
-            },
-          ),
-          _AmbilightIntent: CallbackAction<_AmbilightIntent>(
-            onInvoke: (i) {
-              setState(() => _ambilight = !_ambilight);
-              _wake();
-              return null;
-            },
-          ),
+          _ZapUpIntent: CallbackAction<_ZapUpIntent>(onInvoke: (i) {
+            _zap(-1);
+            return null;
+          }),
+          _ZapDownIntent: CallbackAction<_ZapDownIntent>(onInvoke: (i) {
+            _zap(1);
+            return null;
+          }),
+          _VolUpIntent: CallbackAction<_VolUpIntent>(onInvoke: (i) {
+            _setVolume(_volume + 0.1);
+            return null;
+          }),
+          _VolDownIntent: CallbackAction<_VolDownIntent>(onInvoke: (i) {
+            _setVolume(_volume - 0.1);
+            return null;
+          }),
+          _PlayPauseIntent: CallbackAction<_PlayPauseIntent>(onInvoke: (i) {
+            _togglePlay();
+            return null;
+          }),
+          _FitIntent: CallbackAction<_FitIntent>(onInvoke: (i) {
+            _cycleFit();
+            return null;
+          }),
+          _AmbilightIntent: CallbackAction<_AmbilightIntent>(onInvoke: (i) {
+            _toggleAmbilight();
+            return null;
+          }),
+          _PictureIntent: CallbackAction<_PictureIntent>(onInvoke: (i) {
+            _cyclePicture();
+            return null;
+          }),
+          _BoostIntent: CallbackAction<_BoostIntent>(onInvoke: (i) {
+            _toggleBoost();
+            return null;
+          }),
         },
         child: Focus(
           autofocus: true,
@@ -264,17 +353,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 fit: StackFit.expand,
                 children: [
                   if (_ambilight) _ambilightLayer(),
-                  if (ctrl != null && ctrl.value.isInitialized)
-                    Center(
-                      child: FittedBox(
-                        fit: _fit,
-                        child: SizedBox(
-                          width: ctrl.value.size.width,
-                          height: ctrl.value.size.height,
-                          child: VideoPlayer(ctrl),
-                        ),
-                      ),
-                    ),
+                  Center(child: video),
                   if (_loading) _loadingLayer(),
                   if (_error.isNotEmpty) _errorLayer(),
                   AnimatedOpacity(
@@ -291,7 +370,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  /// Halo colore anime derriere la video : effet ambilight.
   Widget _ambilightLayer() => AnimatedBuilder(
         animation: _pulse,
         builder: (context, _) {
@@ -369,7 +447,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _overlay() => Column(
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+            padding: const EdgeInsets.fromLTRB(28, 22, 28, 38),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -411,7 +489,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           ),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.fromLTRB(28, 40, 28, 26),
+            padding: const EdgeInsets.fromLTRB(28, 38, 28, 24),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
@@ -420,16 +498,23 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
             ),
             child: Wrap(
-              spacing: 12,
-              runSpacing: 10,
+              spacing: 10,
+              runSpacing: 9,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                _chip(Icons.tune_rounded,
+                    'Image : ${_pictures[_pictureIndex].name}   (I)',
+                    active: _pictureIndex != 0),
                 _chip(Icons.volume_up_rounded,
-                    'Volume ${(_volume * 100).round()}%   (gauche / droite)'),
+                    'Volume ${(_volume * 100).round()}%'),
+                _chip(Icons.graphic_eq_rounded,
+                    'Boost son : ${_boost ? "on" : "off"}   (B)',
+                    active: _boost),
                 _chip(Icons.aspect_ratio_rounded,
-                    'Image : ${_fitLabel()}   (Z)'),
+                    'Format : ${_fitLabel()}   (Z)'),
                 _chip(Icons.lightbulb_outline_rounded,
-                    'Ambilight : ${_ambilight ? "on" : "off"}   (L)'),
+                    'Ambilight : ${_ambilight ? "on" : "off"}   (L)',
+                    active: _ambilight),
                 _chip(Icons.swap_vert_rounded, 'Zapper : haut / bas'),
               ],
             ),
@@ -448,24 +533,32 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  Widget _chip(IconData i, String t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+  Widget _chip(IconData i, String t, {bool active = false}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          gradient: active ? NovaColors.brand : null,
+          color: active ? null : Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(
+            color: active
+                ? Colors.transparent
+                : Colors.white.withOpacity(0.12),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(i, size: 15, color: NovaColors.cyan),
-            const SizedBox(width: 8),
-            Text(t, style: const TextStyle(fontSize: 12)),
+            Icon(i, size: 14, color: active ? Colors.white : NovaColors.cyan),
+            const SizedBox(width: 7),
+            Text(t,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                )),
           ],
         ),
       );
 
-  /// Egaliseur decoratif anime, signature visuelle de NOVA.
   Widget _eq() => AnimatedBuilder(
         animation: _pulse,
         builder: (context, _) {

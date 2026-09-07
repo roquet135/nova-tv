@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/storage.dart';
 import '../theme/nova_theme.dart';
+import '../widgets/aurora_background.dart';
 import '../widgets/nova_widgets.dart';
 import 'add_portal_screen.dart';
 import 'channels_screen.dart';
@@ -33,20 +34,43 @@ class _PortalsScreenState extends State<PortalsScreen> {
     _refresh();
   }
 
+  Future<void> _delete(Portal p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NovaColors.surface,
+        title: const Text('Supprimer cet abonnement ?'),
+        content: Text(
+          '"${p.name}" sera retire de NOVA TV.\nCette action est definitive.',
+          style: const TextStyle(color: NovaColors.textDim, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await Storage.deletePortal(p.id);
+      _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(-0.7, -0.9),
-            radius: 1.5,
-            colors: [Color(0xFF141A2E), NovaColors.bg],
-          ),
-        ),
+      backgroundColor: Colors.transparent,
+      body: AuroraBackground(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(48, 32, 48, 24),
+            padding: const EdgeInsets.fromLTRB(48, 30, 48, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -70,9 +94,7 @@ class _PortalsScreenState extends State<PortalsScreen> {
                   style: TextStyle(color: NovaColors.textDim, fontSize: 13),
                 ),
                 const SizedBox(height: 28),
-                Expanded(
-                  child: _portals.isEmpty ? _empty() : _grid(),
-                ),
+                Expanded(child: _portals.isEmpty ? _empty() : _grid()),
               ],
             ),
           ),
@@ -111,60 +133,82 @@ class _PortalsScreenState extends State<PortalsScreen> {
         itemCount: _portals.length,
         itemBuilder: (context, i) {
           final p = _portals[i];
-          return FocusCard(
-            autofocus: i == 0,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ChannelsScreen(portal: p)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
+          return Stack(
+            children: [
+              FocusCard(
+                autofocus: i == 0,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ChannelsScreen(portal: p)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: NovaColors.brand,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(_iconFor(p.type),
-                            size: 18, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          p.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              gradient: NovaColors.brand,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(_iconFor(p.type),
+                                size: 18, color: Colors.white),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              p.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        p.type.label,
+                        style: const TextStyle(
+                            color: NovaColors.textDim, fontSize: 12),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        p.url,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: NovaColors.textDim, fontSize: 11),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    p.type.label,
-                    style: const TextStyle(
-                        color: NovaColors.textDim, fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    p.url,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: NovaColors.textDim, fontSize: 11),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => _delete(p),
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.45),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Colors.redAccent.withOpacity(0.45)),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded,
+                        size: 15, color: Colors.redAccent),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       );
