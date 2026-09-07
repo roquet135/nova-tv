@@ -1,0 +1,45 @@
+name: nova_tv
+description: NOVA TV - Lecteur IPTV pour Android TV, Google TV et Fire TV
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Lecteur video : libmpv, gere HLS, TS, RTMP, DASH + passthrough audio
+  media_kit: 1.1.11
+  media_kit_video: 1.2.5
+  media_kit_libs_video: 1.0.5
+
+  # Reseau
+  http: 1.2.2
+
+  # Stockage local (aucun serveur, aucun compte)
+  hive: 2.2.3
+  hive_flutter: 1.1.0
+  path_provider: 2.1.4
+
+  # Interface
+  cached_network_image: 3.4.1
+  google_fonts: 6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 4.0.0
+  flutter_launcher_icons: 0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#05060A"
+  adaptive_icon_foreground: "assets/logo.png"
