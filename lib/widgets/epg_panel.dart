@@ -20,9 +20,9 @@ class EpgPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
       decoration: BoxDecoration(
-        color: NovaColors.surface.withOpacity(0.6),
+        color: NovaColors.surface.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,8 +89,8 @@ class EpgPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: now
-                ? NovaColors.violet.withOpacity(0.18)
-                : Colors.white.withOpacity(0.035),
+                ? NovaColors.violet.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.035),
             borderRadius: BorderRadius.circular(8),
             border: Border(
               left: BorderSide(
@@ -147,7 +147,7 @@ class EpgPanel extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: p.progress,
                     minHeight: 3,
-                    backgroundColor: Colors.white.withOpacity(0.12),
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
                     valueColor: const AlwaysStoppedAnimation(NovaColors.cyan),
                   ),
                 ),

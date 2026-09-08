@@ -68,7 +68,7 @@ class _FocusCardState extends State<FocusCard> {
                     boxShadow: _focused
                         ? [
                             BoxShadow(
-                              color: NovaColors.cyan.withOpacity(0.35),
+                              color: NovaColors.cyan.withValues(alpha: 0.35),
                               blurRadius: 28,
                               spreadRadius: 1,
                             ),
@@ -170,7 +170,7 @@ class _NovaButtonState extends State<NovaButton> {
                 boxShadow: _f
                     ? [
                         BoxShadow(
-                          color: NovaColors.violet.withOpacity(0.4),
+                          color: NovaColors.violet.withValues(alpha: 0.4),
                           blurRadius: 20,
                         ),
                       ]

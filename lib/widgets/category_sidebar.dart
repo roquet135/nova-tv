@@ -37,9 +37,9 @@ class CategorySidebar extends StatelessWidget {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: NovaColors.bg.withOpacity(0.55),
+        color: NovaColors.bg.withValues(alpha: 0.55),
         border: Border(
-          right: BorderSide(color: Colors.white.withOpacity(0.06)),
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
         ),
       ),
       child: Column(
@@ -75,7 +75,7 @@ class CategorySidebar extends StatelessWidget {
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 filled: true,
-                fillColor: NovaColors.surface.withOpacity(0.9),
+                fillColor: NovaColors.surface.withValues(alpha: 0.9),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(9),
                   borderSide: BorderSide.none,
@@ -177,7 +177,7 @@ class _SideTileState extends State<_SideTile> {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
                   color: sel
-                      ? Colors.white.withOpacity(0.85)
+                      ? Colors.white.withValues(alpha: 0.85)
                       : NovaColors.textDim,
                 ),
               ),

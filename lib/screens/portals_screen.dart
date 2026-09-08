@@ -108,7 +108,7 @@ class _PortalsScreenState extends State<PortalsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.live_tv_rounded,
-                size: 72, color: NovaColors.violet.withOpacity(0.5)),
+                size: 72, color: NovaColors.violet.withValues(alpha: 0.5)),
             const SizedBox(height: 20),
             const Text(
               'Aucun abonnement pour le moment',
@@ -198,10 +198,10 @@ class _PortalsScreenState extends State<PortalsScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.45),
+                      color: Colors.black.withValues(alpha: 0.45),
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: Colors.redAccent.withOpacity(0.45)),
+                          color: Colors.redAccent.withValues(alpha: 0.45)),
                     ),
                     child: const Icon(Icons.delete_outline_rounded,
                         size: 15, color: Colors.redAccent),

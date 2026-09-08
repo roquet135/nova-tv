@@ -67,8 +67,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 end: Alignment.centerRight,
                 colors: [
                   NovaColors.bg,
-                  NovaColors.bg.withOpacity(0.97),
-                  NovaColors.bg.withOpacity(0.82),
+                  NovaColors.bg.withValues(alpha: 0.97),
+                  NovaColors.bg.withValues(alpha: 0.82),
                 ],
               ),
             ),
@@ -216,9 +216,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   Widget _badge(IconData i, String t, Color c) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
-          color: c.withOpacity(0.13),
+          color: c.withValues(alpha: 0.13),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.withOpacity(0.35)),
+          border: Border.all(color: c.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

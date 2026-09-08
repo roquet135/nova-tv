@@ -266,9 +266,9 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: NovaColors.surface.withOpacity(0.75),
+        color: NovaColors.surface.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: NovaColors.cyan.withOpacity(0.2)),
+        border: Border.all(color: NovaColors.cyan.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -545,21 +545,21 @@ class _TvKeyState extends State<_TvKey> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: widget.accent
-                    ? NovaColors.violet.withOpacity(0.5)
+                    ? NovaColors.violet.withValues(alpha: 0.5)
                     : NovaColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(9),
                 border: Border.all(
                   color: _f
                       ? NovaColors.cyan
                       : (widget.danger
-                          ? Colors.redAccent.withOpacity(0.4)
+                          ? Colors.redAccent.withValues(alpha: 0.4)
                           : Colors.white10),
                   width: _f ? 2 : 1,
                 ),
                 boxShadow: _f
                     ? [
                         BoxShadow(
-                          color: NovaColors.cyan.withOpacity(0.3),
+                          color: NovaColors.cyan.withValues(alpha: 0.3),
                           blurRadius: 12,
                         ),
                       ]

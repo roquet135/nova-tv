@@ -148,7 +148,7 @@ class _MiniPlayerState extends State<MiniPlayer>
             boxShadow: [
               BoxShadow(
                 color: NovaColors.cyan
-                    .withOpacity(0.25 + _pulse.value * 0.25),
+                    .withValues(alpha: 0.25 + _pulse.value * 0.25),
                 blurRadius: 26 + _pulse.value * 12,
                 spreadRadius: 1,
               ),
@@ -164,7 +164,7 @@ class _MiniPlayerState extends State<MiniPlayer>
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: NovaColors.cyan.withOpacity(0.55)),
+            border: Border.all(color: NovaColors.cyan.withValues(alpha: 0.55)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -216,7 +216,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(5),
                           ),
                           child: Row(
@@ -252,7 +252,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.65),
+                              color: Colors.black.withValues(alpha: 0.65),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.close_rounded,

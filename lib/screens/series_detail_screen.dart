@@ -324,9 +324,9 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   Widget _badge(IconData i, String t, Color c) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: c.withOpacity(0.13),
+          color: c.withValues(alpha: 0.13),
           borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: c.withOpacity(0.35)),
+          border: Border.all(color: c.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

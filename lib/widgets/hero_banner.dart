@@ -33,8 +33,8 @@ class HeroBanner extends StatelessWidget {
       height: 215,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: NovaColors.surface.withOpacity(0.5),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        color: NovaColors.surface.withValues(alpha: 0.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -166,7 +166,7 @@ class HeroBanner extends StatelessWidget {
                             color: NovaColors.surfaceHigh,
                             child: Icon(Icons.movie_outlined,
                                 size: 34,
-                                color: NovaColors.violet.withOpacity(0.5)),
+                                color: NovaColors.violet.withValues(alpha: 0.5)),
                           )
                         : CachedNetworkImage(
                             imageUrl: poster,
@@ -175,7 +175,7 @@ class HeroBanner extends StatelessWidget {
                               color: NovaColors.surfaceHigh,
                               child: Icon(Icons.movie_outlined,
                                   size: 34,
-                                  color: NovaColors.violet.withOpacity(0.5)),
+                                  color: NovaColors.violet.withValues(alpha: 0.5)),
                             ),
                           ),
                   ),

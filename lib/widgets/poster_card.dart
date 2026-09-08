@@ -68,7 +68,7 @@ class _PosterCardState extends State<PosterCard> {
                 boxShadow: _f
                     ? [
                         BoxShadow(
-                          color: NovaColors.violet.withOpacity(0.55),
+                          color: NovaColors.violet.withValues(alpha: 0.55),
                           blurRadius: 26,
                           spreadRadius: 2,
                         ),
@@ -93,7 +93,7 @@ class _PosterCardState extends State<PosterCard> {
                               placeholder: (_, __) => Center(
                                 child: Icon(Icons.movie_outlined,
                                     size: 30,
-                                    color: NovaColors.textDim.withOpacity(0.4)),
+                                    color: NovaColors.textDim.withValues(alpha: 0.4)),
                               ),
                             )
                           else
@@ -121,7 +121,7 @@ class _PosterCardState extends State<PosterCard> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 7, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.75),
+                                  color: Colors.black.withValues(alpha: 0.75),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
@@ -199,7 +199,7 @@ class _PosterCardState extends State<PosterCard> {
         color: NovaColors.surfaceHigh,
         child: Center(
           child: Icon(Icons.movie_creation_outlined,
-              size: 34, color: NovaColors.violet.withOpacity(0.5)),
+              size: 34, color: NovaColors.violet.withValues(alpha: 0.5)),
         ),
       );
 }

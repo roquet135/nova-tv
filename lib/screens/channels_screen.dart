@@ -574,12 +574,12 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             gradient: active ? NovaColors.brand : null,
-            color: active ? null : NovaColors.surface.withOpacity(0.85),
+            color: active ? null : NovaColors.surface.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(9),
             border: Border.all(
               color: active
                   ? Colors.transparent
-                  : Colors.redAccent.withOpacity(0.3),
+                  : Colors.redAccent.withValues(alpha: 0.3),
             ),
           ),
           child: Row(
@@ -621,7 +621,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           gradient: sel ? NovaColors.brand : null,
-          color: sel ? null : NovaColors.surface.withOpacity(0.8),
+          color: sel ? null : NovaColors.surface.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
@@ -630,14 +630,14 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             Icon(icon,
                 size: 16,
                 color:
-                    empty ? NovaColors.textDim.withOpacity(0.4) : Colors.white),
+                    empty ? NovaColors.textDim.withValues(alpha: 0.4) : Colors.white),
             const SizedBox(width: 8),
             Text(label,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                   color: empty
-                      ? NovaColors.textDim.withOpacity(0.4)
+                      ? NovaColors.textDim.withValues(alpha: 0.4)
                       : NovaColors.text,
                 )),
             if (n > 0) ...[
@@ -645,7 +645,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.32),
+                  color: Colors.black.withValues(alpha: 0.32),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text('$n',
@@ -810,7 +810,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                       child: c.logo.isEmpty
                           ? Icon(Icons.live_tv_rounded,
                               size: 36,
-                              color: NovaColors.violet.withOpacity(0.6))
+                              color: NovaColors.violet.withValues(alpha: 0.6))
                           : CachedNetworkImage(
                               imageUrl: c.logo,
                               fit: BoxFit.contain,
@@ -1007,14 +1007,14 @@ class _TvChipState extends State<_TvChip> {
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
               decoration: BoxDecoration(
                 gradient: sel ? NovaColors.brand : null,
-                color: sel ? null : NovaColors.surface.withOpacity(0.8),
+                color: sel ? null : NovaColors.surface.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(17),
                 border: Border.all(
                   color: _f
                       ? NovaColors.cyan
                       : (sel
                           ? Colors.transparent
-                          : NovaColors.cyan.withOpacity(0.18)),
+                          : NovaColors.cyan.withValues(alpha: 0.18)),
                   width: _f ? 2 : 1,
                 ),
               ),

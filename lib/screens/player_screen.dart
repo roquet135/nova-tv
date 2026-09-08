@@ -485,8 +485,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 center: Alignment(-0.6 + t * 1.2, -0.6 + t * 0.8),
                 radius: 1.1 + t * 0.35,
                 colors: [
-                  NovaColors.violet.withOpacity(0.32 + t * 0.12),
-                  NovaColors.cyan.withOpacity(0.16),
+                  NovaColors.violet.withValues(alpha: 0.32 + t * 0.12),
+                  NovaColors.cyan.withValues(alpha: 0.16),
                   Colors.black,
                 ],
                 stops: const [0.0, 0.45, 1.0],
@@ -766,7 +766,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             child: LinearProgressIndicator(
               value: now.progress,
               minHeight: 3,
-              backgroundColor: Colors.white.withOpacity(0.15),
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
               valueColor: const AlwaysStoppedAnimation(NovaColors.cyan),
             ),
           ),
@@ -800,12 +800,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
           gradient: active ? NovaColors.brand : null,
-          color: active ? null : Colors.white.withOpacity(0.08),
+          color: active ? null : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: active
                 ? Colors.transparent
-                : Colors.white.withOpacity(0.12),
+                : Colors.white.withValues(alpha: 0.12),
           ),
         ),
         child: Row(
@@ -903,20 +903,20 @@ class _PlayerBtnState extends State<_PlayerBtn> {
                 gradient: widget.active && !_f ? NovaColors.brand : null,
                 color: widget.active && !_f
                     ? null
-                    : Colors.white.withOpacity(_f ? 0.20 : 0.08),
+                    : Colors.white.withValues(alpha: _f ? 0.20 : 0.08),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: _f
                       ? NovaColors.cyan
                       : (widget.danger
-                          ? Colors.redAccent.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.12)),
+                          ? Colors.redAccent.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.12)),
                   width: _f ? 2.2 : 1,
                 ),
                 boxShadow: _f
                     ? [
                         BoxShadow(
-                          color: NovaColors.cyan.withOpacity(0.35),
+                          color: NovaColors.cyan.withValues(alpha: 0.35),
                           blurRadius: 16,
                         ),
                       ]

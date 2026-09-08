@@ -130,8 +130,8 @@ class _AuroraPainter extends CustomPainter {
     final paint = Paint()
       ..shader = RadialGradient(
         colors: [
-          color.withOpacity(alpha),
-          color.withOpacity(alpha * 0.45),
+          color.withValues(alpha: alpha),
+          color.withValues(alpha: alpha * 0.45),
           Colors.transparent,
         ],
         stops: const [0.0, 0.45, 1.0],
