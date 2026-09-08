@@ -50,6 +50,11 @@ jobs:
 
       - name: Patcher Gradle pour les vieux plugins media_kit (JVM 17)
         run: |
+          # Les vieux plugins (volume_controller...) compilent en cible 1.8
+          # et font echouer la "validation des cibles Kotlin" de KGP 2.x.
+          # On desactive simplement cette verification (sans danger ici).
+          echo "kotlin.jvm.target.validation.mode = IGNORE" >> android/gradle.properties
+          # Et on aligne quand meme tout le monde sur JVM 17.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
           // --- NOVA FIX : les vieux plugins (volume_controller,
