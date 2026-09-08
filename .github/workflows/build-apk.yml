@@ -57,6 +57,9 @@ jobs:
           # media_kit_video a ete compile pour un SDK Android recent :
           # on autorise AGP a ignorer la contrainte compileSdk de ses AAR.
           echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
+          # Drapeau supplementaire exige par AGP pour valider les AAR
+          # compilees avec un SDK plus recent que le projet.
+          echo "android.ignoreAndroidsStudioOutOfDateCompileSdk=true" >> android/gradle.properties
           # Et on aligne quand meme tout le monde sur JVM 17.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
