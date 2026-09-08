@@ -3,9 +3,10 @@ name: Build NOVA TV APK
 # Ce workflow fait TOUT tout seul :
 #  1. installe Flutter et Java
 #  2. genere la structure Android manquante (flutter create)
-#  3. restaure le manifest Android TV (LEANBACK) que flutter create ecrase
-#  4. genere les icones depuis assets/logo.png
-#  5. compile l'APK et le met a disposition en telechargement
+#  3. patche Gradle : vieux plugins (volume_controller & co) en JVM 17
+#  4. restaure le manifest Android TV (LEANBACK) que flutter create ecrase
+#  5. genere les icones depuis assets/logo.png
+#  6. compile l'APK et le met a disposition en telechargement
 #
 # L'utilisateur n'a rien a installer sur son PC.
 
@@ -46,6 +47,34 @@ jobs:
         run: |
           flutter create --org com.novatv --project-name nova_tv --platforms=android .
           echo "Structure Gradle generee."
+
+      - name: Patcher Gradle pour les vieux plugins media_kit (JVM 17)
+        run: |
+          cat >> android/build.gradle.kts <<'NOVAPATCH'
+
+          // --- NOVA FIX : les vieux plugins (volume_controller,
+          // --- screen_brightness_android, wakelock_plus, package_info_plus)
+          // --- applique un KGP trop ancien. On force la cible JVM 17 partout.
+          subprojects {
+              pluginManager.withPlugin("org.jetbrains.kotlin.android") {
+                  extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>("kotlin") {
+                      compilerOptions {
+                          jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+                      }
+                  }
+              }
+              pluginManager.withPlugin("com.android.library") {
+                  extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
+                      compileOptions {
+                          sourceCompatibility = JavaVersion.VERSION_17
+                          targetCompatibility = JavaVersion.VERSION_17
+                      }
+                  }
+              }
+          }
+          NOVAPATCH
+          echo "--- Patch JVM 17 applique au build.gradle.kts racine ---"
+          tail -n 22 android/build.gradle.kts
 
       - name: Restaurer le manifest Android TV et la config reseau
         run: |
