@@ -121,7 +121,12 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           break;
       }
 
-      _computeCountries();
+      // Calcul des pays, protege : meme si ca echoue, les chaines
+      // s'affichent quand meme (ou si le calcul est long, l'ecran
+      // reste fluide et Android ne tue pas l'application).
+      try {
+        await _computeCountries();
+      } catch (_) {}
 
       if (!mounted) return;
       setState(() {
@@ -140,22 +145,39 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     }
   }
 
-  void _computeCountries() {
+  /// Calcul des pays PAR PETITS PAQUETS : on rend la main au systeme
+  /// toutes les 1500 entrees pour que l'interface reste vivante.
+  /// C'est ce qui empeche Android de fermer l'app ("ne repond pas")
+  /// sur les gros catalogues (100 000+ contenus).
+  Future<void> _computeCountries() async {
     final counts = <String, int>{};
-    void add(String id, String name, String group) {
-      final c = CountryFilter.detect(name, group);
-      _countryOf[id] = c;
-      if (c.isNotEmpty) counts[c] = (counts[c] ?? 0) + 1;
+    var since = 0;
+
+    Future<void> breathe() async {
+      since++;
+      if (since >= 1500) {
+        since = 0;
+        await Future<void>.delayed(Duration.zero);
+      }
     }
 
     for (final c in _live) {
-      add(c.id, c.name, c.group);
+      final co = CountryFilter.detect(c.name, c.group);
+      _countryOf[c.id] = co;
+      if (co.isNotEmpty) counts[co] = (counts[co] ?? 0) + 1;
+      await breathe();
     }
     for (final m in _movies) {
-      add(m.id, m.name, m.group);
+      final co = CountryFilter.detect(m.name, m.group);
+      _countryOf[m.id] = co;
+      if (co.isNotEmpty) counts[co] = (counts[co] ?? 0) + 1;
+      await breathe();
     }
     for (final s in _series) {
-      add(s.id, s.name, s.group);
+      final co = CountryFilter.detect(s.name, s.group);
+      _countryOf[s.id] = co;
+      if (co.isNotEmpty) counts[co] = (counts[co] ?? 0) + 1;
+      await breathe();
     }
     _countries = CountryFilter.presentIn(counts);
   }
@@ -664,17 +686,13 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             color: Colors.white,
           ),
         ),
-        AnimatedCrossFade(
-          duration: const Duration(milliseconds: 180),
-          crossFadeState: _countryOpen
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: const SizedBox.shrink(),
-          secondChild: Padding(
+        // La liste des pays n'existe que quand le menu est ouvert :
+        // simple et sans risque sur les vieilles box TV.
+        if (_countryOpen)
+          Padding(
             padding: const EdgeInsets.only(top: 10),
             child: SizedBox(height: 38, child: _countryOptions()),
           ),
-        ),
       ],
     );
   }
@@ -705,6 +723,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             SizedBox(height: 18),
             Text('Connexion au portail...',
                 style: TextStyle(color: NovaColors.textDim)),
+            SizedBox(height: 8),
+            Text('Gros catalogue = premier chargement un peu long.\nNe touche a rien, ca arrive :)',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: NovaColors.textDim, fontSize: 11)),
           ],
         ),
       );

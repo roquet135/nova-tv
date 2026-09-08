@@ -3,6 +3,11 @@
 ///
 /// Les portails IPTV prefixent presque toujours leurs contenus :
 /// "FR| TF1", "FR - Canal+", "[FR] Netflix", "UK: BBC One"...
+///
+/// OPTIMISATION v7.1 : toutes les expressions regulieres sont compilees
+/// UNE SEULE FOIS au demarrage. Avant, elles etaient recreees pour chacun
+/// des 100 000+ contenus, ce qui figeait l'interface et faisait tuer
+/// l'application par Android sur les petites box TV.
 class CountryFilter {
   /// Drapeau, libelle et motifs de reconnaissance.
   static const List<Country> all = [
@@ -37,13 +42,42 @@ class CountryFilter {
     Country('AF', 'Afrique', '🌍', ['af', 'africa', 'afrique', 'senegal', 'ci']),
   ];
 
+  // ---------- Regex compilees UNE SEULE FOIS (cle de la perf) ----------
+
+  /// Motif de prefixe explicite : "FR|", "FR -", "[FR]", "FR:"
+  static final RegExp _prefixRe =
+      RegExp(r'^\s*[\[\(]?\s*([a-z]{2,3})\s*[\]\)]?\s*[|:\-–]');
+
+  /// Mots entiers (longueur >= 3), par code pays.
+  static final Map<String, List<RegExp>> _wordRes = {
+    for (final c in all)
+      if (c.code != 'ALL')
+        c.code: [
+          for (final p in c.patterns)
+            if (p.length >= 3) RegExp('\\b${RegExp.escape(p)}\\b'),
+        ],
+  };
+
+  /// Codes courts (longueur <= 2) entoures de separateurs, par code pays.
+  static final Map<String, List<RegExp>> _shortRes = {
+    for (final c in all)
+      if (c.code != 'ALL')
+        c.code: [
+          for (final p in c.patterns)
+            if (p.length <= 2)
+              RegExp(
+                  '(^|[\\s\\|\\[\\(:\\-])$p([\\s\\|\\]\\):\\-]|\$)'),
+        ],
+  };
+
+  // -------------------------------------------------------------------
+
   /// Detecte le code pays d'un texte. Retourne '' si indetermine.
   static String detect(String name, String group) {
     final hay = '$group $name'.toLowerCase();
 
     // 1. Motif de prefixe explicite : "FR|", "FR -", "[FR]", "FR:"
-    final m = RegExp(r'^\s*[\[\(]?\s*([a-z]{2,3})\s*[\]\)]?\s*[|:\-–]')
-        .firstMatch(hay);
+    final m = _prefixRe.firstMatch(hay);
     if (m != null) {
       final code = m.group(1)!;
       for (final c in all) {
@@ -55,21 +89,18 @@ class CountryFilter {
     // 2. Mot entier present dans le texte
     for (final c in all) {
       if (c.code == 'ALL') continue;
-      for (final p in c.patterns) {
-        if (p.length < 3) continue; // trop court hors prefixe
-        if (RegExp('\\b${RegExp.escape(p)}\\b').hasMatch(hay)) return c.code;
+      final res = _wordRes[c.code]!;
+      for (final re in res) {
+        if (re.hasMatch(hay)) return c.code;
       }
     }
 
     // 3. Code court entoure de separateurs
     for (final c in all) {
       if (c.code == 'ALL') continue;
-      for (final p in c.patterns) {
-        if (p.length > 2) continue;
-        if (RegExp('(^|[\\s\\|\\[\\(:\\-])$p([\\s\\|\\]\\):\\-]|\$)')
-            .hasMatch(hay)) {
-          return c.code;
-        }
+      final res = _shortRes[c.code]!;
+      for (final re in res) {
+        if (re.hasMatch(hay)) return c.code;
       }
     }
 
