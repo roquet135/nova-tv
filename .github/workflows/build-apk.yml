@@ -54,6 +54,9 @@ jobs:
           # et font echouer la "validation des cibles Kotlin" de KGP 2.x.
           # On desactive simplement cette verification (sans danger ici).
           echo "kotlin.jvm.target.validation.mode = IGNORE" >> android/gradle.properties
+          # media_kit_video a ete compile pour un SDK Android recent :
+          # on autorise AGP a ignorer la contrainte compileSdk de ses AAR.
+          echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
           # Et on aligne quand meme tout le monde sur JVM 17.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
@@ -89,18 +92,19 @@ jobs:
           echo "--- Manifest actif ---"
           cat android/app/src/main/AndroidManifest.xml
 
-      - name: Forcer minSdk 21 et NDK compatible
+      - name: Forcer minSdk 24, compileSdk 36 et NDK compatible
         run: |
           F=android/app/build.gradle.kts
           if [ -f "$F" ]; then
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' "$F"
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' "$F"
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$F"
             sed -i 's/ndkVersion = flutter.ndkVersion/ndkVersion = "27.0.12077973"/' "$F"
           fi
           G=android/app/build.gradle
           if [ -f "$G" ]; then
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' "$G"
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' "$G"
           fi
-          echo "minSdk ajuste."
+          echo "SDK ajustes (compileSdk 36, minSdk 24)."
 
       - name: Recuperer les dependances
         run: flutter pub get
