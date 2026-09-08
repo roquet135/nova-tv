@@ -207,3 +207,71 @@ class Episode {
         group: 'Series',
       );
 }
+
+/// Un film ou un episode garde sur la box pour le regarder hors-ligne.
+class DownloadItem {
+  final String id; // identifiant unique du telechargement
+  final String contentId; // id du film ou de l'episode source
+  final String type; // 'movie' ou 'episode'
+  final String name;
+  final String poster;
+  final String group;
+  final String filePath; // chemin local du fichier sur la box
+  final int sizeBytes;
+  final String dateIso;
+  final int season;
+  final int episode;
+
+  const DownloadItem({
+    required this.id,
+    required this.contentId,
+    required this.type,
+    required this.name,
+    this.poster = '',
+    this.group = '',
+    required this.filePath,
+    this.sizeBytes = 0,
+    this.dateIso = '',
+    this.season = 0,
+    this.episode = 0,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'contentId': contentId,
+        'type': type,
+        'name': name,
+        'poster': poster,
+        'group': group,
+        'filePath': filePath,
+        'sizeBytes': sizeBytes,
+        'dateIso': dateIso,
+        'season': season,
+        'episode': episode,
+      };
+
+  factory DownloadItem.fromMap(Map<dynamic, dynamic> m) => DownloadItem(
+        id: (m['id'] ?? '') as String,
+        contentId: (m['contentId'] ?? '') as String,
+        type: (m['type'] ?? 'movie') as String,
+        name: (m['name'] ?? '') as String,
+        poster: (m['poster'] ?? '') as String,
+        group: (m['group'] ?? '') as String,
+        filePath: (m['filePath'] ?? '') as String,
+        sizeBytes: ((m['sizeBytes'] ?? 0) as num).toInt(),
+        dateIso: (m['dateIso'] ?? '') as String,
+        season: ((m['season'] ?? 0) as num).toInt(),
+        episode: ((m['episode'] ?? 0) as num).toInt(),
+      );
+
+  /// Convertit en Channel jouable en local par le lecteur.
+  Channel toChannel() => Channel(
+        id: 'dl_$id',
+        name: type == 'episode'
+            ? 'S${season}E$episode - $name'
+            : name,
+        streamUrl: filePath,
+        logo: poster,
+        group: 'Telechargements',
+      );
+}

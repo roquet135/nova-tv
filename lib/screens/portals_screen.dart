@@ -6,6 +6,7 @@ import '../widgets/aurora_background.dart';
 import '../widgets/nova_widgets.dart';
 import 'add_portal_screen.dart';
 import 'channels_screen.dart';
+import 'downloads_screen.dart';
 
 /// Ecran d'accueil : liste des abonnements enregistres.
 class PortalsScreen extends StatefulWidget {
@@ -25,6 +26,13 @@ class _PortalsScreenState extends State<PortalsScreen> {
   }
 
   void _refresh() => setState(() => _portals = Storage.portals());
+
+  void _downloads() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+    );
+  }
 
   Future<void> _add() async {
     await Navigator.push(
@@ -80,6 +88,12 @@ class _PortalsScreenState extends State<PortalsScreen> {
                     const SizedBox(width: 16),
                     const GradientTitle('NOVA TV', size: 34),
                     const Spacer(),
+                    NovaButton(
+                      label: 'Mes telechargements',
+                      icon: Icons.download_done_rounded,
+                      onTap: _downloads,
+                    ),
+                    const SizedBox(width: 12),
                     NovaButton(
                       label: 'Ajouter un abonnement',
                       icon: Icons.add_rounded,

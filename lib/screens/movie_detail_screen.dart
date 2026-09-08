@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/xtream_service.dart';
 import '../theme/nova_theme.dart';
+import '../widgets/download_sheet.dart';
 import '../widgets/nova_widgets.dart';
 import 'player_screen.dart';
 
@@ -43,6 +44,19 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           playlist: const [],
         ),
       ),
+    );
+  }
+
+  /// Garder le film sur la box pour le regarder hors-ligne.
+  void _download() {
+    showDownloadSheet(
+      context,
+      contentId: widget.movie.id,
+      type: 'movie',
+      name: widget.movie.name,
+      poster: widget.movie.poster,
+      group: widget.movie.group,
+      streamUrl: widget.movie.streamUrl,
     );
   }
 
@@ -191,6 +205,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                 icon: Icons.play_arrow_rounded,
                                 autofocus: true,
                                 onTap: _play,
+                              ),
+                              const SizedBox(width: 14),
+                              NovaButton(
+                                label: 'Telecharger',
+                                icon: Icons.download_rounded,
+                                onTap: _download,
                               ),
                               const SizedBox(width: 14),
                               NovaButton(

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/models.dart';
 
@@ -7,6 +9,7 @@ class Storage {
   static const _favs = 'favorites';
   static const _prefs = 'prefs';
   static const _hidden = 'hidden';
+  static const _downloads = 'downloads';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -14,6 +17,7 @@ class Storage {
     await Hive.openBox(_favs);
     await Hive.openBox(_prefs);
     await Hive.openBox(_hidden);
+    await Hive.openBox(_downloads);
   }
 
   // --- Portails ---
@@ -103,4 +107,51 @@ class Storage {
 
   static String lastChannel() =>
       Hive.box(_prefs).get('lastChannel', defaultValue: '') as String;
+
+  // --- Telechargements (slides gardes enfili) ---
+  static List<DownloadItem> downloads() {
+    final box = Hive.box(_downloads);
+    final list = box.values
+        .whereType<Map>()
+        .map((e) => DownloadItem.fromMap(e))
+        .toList(growable: false);
+    // Les plus recents en premier
+    list.sort((a, b) => b.dateIso.compareTo(a.dateIso));
+    return list;
+  }
+
+  static Future<void> saveDownload(DownloadItem d) =>
+      Hive.box(_downloads).put(d.id, d.toMap());
+
+  static Future<void> removeDownload(String id) async {
+    final d = Hive.box(_downloads).get(id);
+    await Hive.box(_downloads).delete(id);
+    // Supprime aussi le fichier s'il existe encore (securite).
+    try {
+      if (d is Map) {
+        final path = '${d['filePath'] ?? ''}';
+        if (path.isNotEmpty) {
+          final f = File(path);
+          if (await f.exists()) await f.delete();
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Espace total occupe par les telechargements (en octets).
+  static int downloadsTotalSize() {
+    var total = 0;
+    for (final v in Hive.box(_downloads).values.whereType<Map>()) {
+      total += ((v['sizeBytes'] ?? 0) as num).toInt();
+    }
+    return total;
+  }
+
+  /// Vrai si ce contenu (film ou episode) est deja sur la box.
+  static bool isDownloaded(String contentId) {
+    for (final v in Hive.box(_downloads).values.whereType<Map>()) {
+      if ('${v['contentId']}' == contentId) return true;
+    }
+    return false;
+  }
 }

@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/models.dart';
+import '../services/storage.dart';
 import '../services/xtream_service.dart';
 import '../theme/nova_theme.dart';
+import '../widgets/download_sheet.dart';
 import '../widgets/nova_widgets.dart';
 import 'player_screen.dart';
 
@@ -301,6 +304,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 10),
+                                            _EpisodeDownloadButton(
+                                              episode: e,
+                                              seriesName: s.name,
+                                            ),
+                                            const SizedBox(width: 8),
                                             const Icon(
                                                 Icons.play_arrow_rounded,
                                                 color: NovaColors.cyan),
@@ -339,4 +347,97 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           ],
         ),
       );
+}
+
+/// Petit icone de telechargement par episode : focusable aux fleches,
+/// devient un crochet vert quand l episode est deja garde sur la box.
+class _EpisodeDownloadButton extends StatefulWidget {
+  final Episode episode;
+  final String seriesName;
+
+  const _EpisodeDownloadButton({
+    required this.episode,
+    required this.seriesName,
+  });
+
+  @override
+  State<_EpisodeDownloadButton> createState() => _EpisodeDownloadButtonState();
+}
+
+class _EpisodeDownloadButtonState extends State<_EpisodeDownloadButton> {
+  bool _f = false;
+
+  void _download() {
+    if (Storage.isDownloaded(widget.episode.id)) return;
+    showDownloadSheet(
+      context,
+      contentId: widget.episode.id,
+      type: 'episode',
+      name: '${widget.seriesName} - ${widget.episode.name}',
+      poster: widget.episode.image,
+      group: 'Series',
+      streamUrl: widget.episode.streamUrl,
+      season: widget.episode.season,
+      episode: widget.episode.episode,
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final got = Storage.isDownloaded(widget.episode.id);
+    return Focus(
+      onFocusChange: (v) => setState(() => _f = v),
+      child: Builder(
+        builder: (context) {
+          return Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                ActivateIntent: CallbackAction<ActivateIntent>(
+                  onInvoke: (intent) {
+                    _download();
+                    return null;
+                  },
+                ),
+              },
+              child: GestureDetector(
+                onTap: _download,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: got
+                        ? const Color(0xFF14351F)
+                        : (_f ? NovaColors.cyan.withValues(alpha: 0.18) : Colors.transparent),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: _f
+                          ? NovaColors.cyan
+                          : (got
+                              ? const Color(0xFF22C55E)
+                              : Colors.white.withValues(alpha: 0.2)),
+                      width: _f ? 2 : 1,
+                    ),
+                  ),
+                  child: Icon(
+                    got ? Icons.check_circle_rounded : Icons.download_rounded,
+                    size: 17,
+                    color: got
+                        ? const Color(0xFF22C55E)
+                        : (_f ? NovaColors.cyan : NovaColors.textDim),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -162,13 +163,20 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (url.isEmpty) throw Exception('Flux indisponible');
 
-      final ctrl = VideoPlayerController.networkUrl(
-        Uri.parse(url),
-        httpHeaders: const {
-          'User-Agent':
-              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-        },
-      );
+      // v9.1 : si ce n est pas un lien web, c est un fichier telecharge
+      // sur la box -> on lit le fichier local directement.
+      final VideoPlayerController ctrl;
+      if (url.startsWith('http')) {
+        ctrl = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          httpHeaders: const {
+            'User-Agent':
+                'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+          },
+        );
+      } else {
+        ctrl = VideoPlayerController.file(File(url));
+      }
 
       await ctrl.initialize().timeout(const Duration(seconds: 45));
       await ctrl.setVolume(_effectiveVolume);
