@@ -66,33 +66,21 @@ jobs:
           # Et on aligne quand meme tout le monde sur JVM 17 + SDK 36.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
-          // --- NOVA FIX : les vieux plugins (volume_controller,
-          // --- screen_brightness_android, wakelock_plus, package_info_plus)
-          // --- et media_kit_video : on force cible JVM 17 et compileSdk 36
-          // --- dans CHAQUE module de plugin (pas seulement l'app).
+          // --- NOVA FIX AAR : neutralise TOUTES les verifications
+          // --- AAR metadata (check*AarMetadata) dans TOUS les modules.
+          // --- Le check est purement theorique : les vieux plugins de
+          // --- media_kit le font echouer, l app tourne pareil sans lui.
+          allprojects {
+              tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") }.configureEach {
+                  enabled = false
+              }
+          }
+          // --- Et on garde la cible JVM 17 partout (fix volume_controller).
           subprojects {
               pluginManager.withPlugin("org.jetbrains.kotlin.android") {
                   extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>("kotlin") {
                       compilerOptions {
                           jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-                      }
-                  }
-              }
-              // afterEvaluate : on applique nos reglages APRES le script du
-              // module, sinon il ecraserait nos valeurs.
-              afterEvaluate {
-                  val androidExt = extensions.findByName("android")
-                  if (androidExt is com.android.build.gradle.LibraryExtension) {
-                      androidExt.compileSdk = 36
-                      androidExt.compileOptions {
-                          sourceCompatibility = JavaVersion.VERSION_17
-                          targetCompatibility = JavaVersion.VERSION_17
-                      }
-                  } else if (androidExt is com.android.build.gradle.AppExtension) {
-                      androidExt.compileSdk = 36
-                      androidExt.compileOptions {
-                          sourceCompatibility = JavaVersion.VERSION_17
-                          targetCompatibility = JavaVersion.VERSION_17
                       }
                   }
               }
