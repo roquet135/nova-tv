@@ -3,10 +3,9 @@ name: Build NOVA TV APK
 # Ce workflow fait TOUT tout seul :
 #  1. installe Flutter et Java
 #  2. genere la structure Android manquante (flutter create)
-#  3. patche Gradle : vieux plugins (volume_controller & co) en JVM 17
-#  4. restaure le manifest Android TV (LEANBACK) que flutter create ecrase
-#  5. genere les icones depuis assets/logo.png
-#  6. compile l'APK et le met a disposition en telechargement
+#  3. restaure le manifest Android TV (LEANBACK) que flutter create ecrase
+#  4. genere les icones depuis assets/logo.png
+#  5. compile l'APK et le met a disposition en telechargement
 #
 # L'utilisateur n'a rien a installer sur son PC.
 
@@ -48,55 +47,6 @@ jobs:
           flutter create --org com.novatv --project-name nova_tv --platforms=android .
           echo "Structure Gradle generee."
 
-      - name: Patcher Gradle pour les vieux plugins media_kit (JVM 17)
-        run: |
-          # Les vieux plugins (volume_controller...) compilent en cible 1.8
-          # et font echouer la "validation des cibles Kotlin" de KGP 2.x.
-          # On desactive simplement cette verification (sans danger ici).
-          echo "kotlin.jvm.target.validation.mode = IGNORE" >> android/gradle.properties
-          # media_kit_video a ete compile pour un SDK Android recent :
-          # on autorise AGP a ignorer la contrainte compileSdk de ses AAR.
-          echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
-          # Drapeau supplementaire exige par AGP pour valider les AAR
-          # compilees avec un SDK plus recent que le projet.
-          echo "android.ignoreAndroidsStudioOutOfDateCompileSdk=true" >> android/gradle.properties
-          # Desactive aussi la validation des ressources (autre verification
-          # trop zelee d'AGP sur les vieilles bibliotheques).
-          echo "android.disableResourceValidation=true" >> android/gradle.properties
-          # Et on aligne quand meme tout le monde sur JVM 17 + SDK 36.
-          cat >> android/build.gradle.kts <<'NOVAPATCH'
-
-          // --- NOVA FIX ULTIME : le script racine ne connait PAS les
-          // --- classes Android (erreur "unresolved reference" precedente).
-          // --- On appelle donc compileSdkVersion("36") par REFLEXION :
-          // --- aucun type Android n'apparait dans le code, rien ne peut
-          // --- plus se casser. Et chaque plugin passe a SDK 36 comme les
-          // --- bibliotheques media_kit le demandent.
-          subprojects {
-              pluginManager.withPlugin("org.jetbrains.kotlin.android") {
-                  extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>("kotlin") {
-                      compilerOptions {
-                          jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-                      }
-                  }
-              }
-              afterEvaluate {
-                  try {
-                      val androidExt = extensions.findByName("android")
-                      if (androidExt != null) {
-                          val m = androidExt.javaClass.getMethod("compileSdkVersion", String::class.java)
-                          m.invoke(androidExt, "36")
-                          println("NOVA : compileSdk 36 applique a " + project.name)
-                      }
-                  } catch (e: Exception) {
-                      println("NOVA : compileSdk ignore pour " + project.name + " (" + e.message + ")")
-                  }
-              }
-          }
-          NOVAPATCH
-          echo "--- Patch JVM 17 applique au build.gradle.kts racine ---"
-          tail -n 22 android/build.gradle.kts
-
       - name: Restaurer le manifest Android TV et la config reseau
         run: |
           mkdir -p android/app/src/main/res/xml
@@ -105,19 +55,18 @@ jobs:
           echo "--- Manifest actif ---"
           cat android/app/src/main/AndroidManifest.xml
 
-      - name: Forcer minSdk 24, compileSdk 36 et NDK compatible
+      - name: Forcer minSdk 21 et NDK compatible
         run: |
           F=android/app/build.gradle.kts
           if [ -f "$F" ]; then
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' "$F"
-            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$F"
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' "$F"
             sed -i 's/ndkVersion = flutter.ndkVersion/ndkVersion = "27.0.12077973"/' "$F"
           fi
           G=android/app/build.gradle
           if [ -f "$G" ]; then
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' "$G"
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' "$G"
           fi
-          echo "SDK ajustes (compileSdk 36, minSdk 24)."
+          echo "minSdk ajuste."
 
       - name: Recuperer les dependances
         run: flutter pub get

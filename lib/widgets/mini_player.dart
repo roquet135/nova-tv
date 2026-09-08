@@ -1,8 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/models.dart';
 import '../services/stalker_service.dart';
@@ -12,7 +11,6 @@ import '../theme/nova_theme.dart';
 ///
 /// Premier clic sur une chaine : elle demarre ici, en petit, sans quitter
 /// la liste. Deuxieme clic sur la meme chaine : plein ecran.
-/// v8 : meme moteur video pro (media_kit) que le plein ecran.
 class MiniPlayer extends StatefulWidget {
   final Channel? channel;
   final StalkerService? stalker;
@@ -37,37 +35,19 @@ class MiniPlayer extends StatefulWidget {
 
 class _MiniPlayerState extends State<MiniPlayer>
     with SingleTickerProviderStateMixin {
-  late final Player _player;
-  late final VideoController _vc;
-  final List<StreamSubscription> _subs = [];
+  VideoPlayerController? _ctrl;
   late final AnimationController _pulse;
   bool _loading = false;
   String _error = '';
   String _loadedId = '';
-  bool _ready = false;
-  int _openSeq = 0;
-
-  static const String _ua =
-      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36';
 
   @override
   void initState() {
     super.initState();
-    _player = Player(
-      configuration: PlayerConfiguration(bufferSize: 16 * 1024 * 1024),
-    );
-    _vc = VideoController(_player);
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _subs.add(_player.stream.error.listen((e) {
-      if (!mounted || e.isEmpty) return;
-      setState(() {
-        _loading = false;
-        _error = 'Lien mort';
-      });
-    }));
     if (widget.channel != null) _open(widget.channel!);
   }
 
@@ -76,7 +56,7 @@ class _MiniPlayerState extends State<MiniPlayer>
     super.didUpdateWidget(old);
     final c = widget.channel;
     if (c == null) {
-      _stopStream();
+      _dispose();
     } else if (c.id != _loadedId) {
       _open(c);
     }
@@ -84,29 +64,29 @@ class _MiniPlayerState extends State<MiniPlayer>
 
   @override
   void dispose() {
-    for (final s in _subs) {
-      s.cancel();
-    }
     _pulse.dispose();
-    _player.dispose();
+    _ctrl?.dispose();
     super.dispose();
   }
 
-  void _stopStream() {
+  void _dispose() {
+    final old = _ctrl;
+    _ctrl = null;
     _loadedId = '';
-    _openSeq++;
-    _player.stop();
-    if (mounted) setState(() => _ready = false);
+    old?.dispose();
+    if (mounted) setState(() {});
   }
 
   Future<void> _open(Channel c) async {
-    final seq = ++_openSeq;
     _loadedId = c.id;
     setState(() {
       _loading = true;
       _error = '';
-      _ready = false;
     });
+
+    final old = _ctrl;
+    _ctrl = null;
+    await old?.dispose();
 
     try {
       var url = c.streamUrl;
@@ -115,18 +95,27 @@ class _MiniPlayerState extends State<MiniPlayer>
       }
       if (url.isEmpty) throw Exception('Flux vide');
 
-      await _player.stop();
-      await _player.open(Media(url, httpHeaders: {'User-Agent': _ua}),
-          play: true);
-      await _player.setVolume(60);
+      final ctrl = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        httpHeaders: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+        },
+      );
+      await ctrl.initialize().timeout(const Duration(seconds: 25));
+      await ctrl.setVolume(0.6);
+      await ctrl.play();
 
-      if (!mounted || seq != _openSeq || _loadedId != c.id) return;
+      if (!mounted || _loadedId != c.id) {
+        await ctrl.dispose();
+        return;
+      }
       setState(() {
-        _ready = true;
+        _ctrl = ctrl;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted || seq != _openSeq || _loadedId != c.id) return;
+      if (!mounted || _loadedId != c.id) return;
       setState(() {
         _loading = false;
         _error = 'Lien mort';
@@ -138,6 +127,7 @@ class _MiniPlayerState extends State<MiniPlayer>
   Widget build(BuildContext context) {
     final c = widget.channel;
     if (c == null) return const SizedBox.shrink();
+    final ctrl = _ctrl;
 
     return AnimatedBuilder(
       animation: _pulse,
@@ -148,7 +138,7 @@ class _MiniPlayerState extends State<MiniPlayer>
             boxShadow: [
               BoxShadow(
                 color: NovaColors.cyan
-                    .withValues(alpha: 0.25 + _pulse.value * 0.25),
+                    .withOpacity(0.25 + _pulse.value * 0.25),
                 blurRadius: 26 + _pulse.value * 12,
                 spreadRadius: 1,
               ),
@@ -164,7 +154,7 @@ class _MiniPlayerState extends State<MiniPlayer>
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: NovaColors.cyan.withValues(alpha: 0.55)),
+            border: Border.all(color: NovaColors.cyan.withOpacity(0.55)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -178,11 +168,14 @@ class _MiniPlayerState extends State<MiniPlayer>
                     fit: StackFit.expand,
                     children: [
                       Container(color: Colors.black),
-                      if (_ready)
-                        Video(
-                          controller: _vc,
+                      if (ctrl != null && ctrl.value.isInitialized)
+                        FittedBox(
                           fit: BoxFit.cover,
-                          controls: (state) => const SizedBox.shrink(),
+                          child: SizedBox(
+                            width: ctrl.value.size.width,
+                            height: ctrl.value.size.height,
+                            child: VideoPlayer(ctrl),
+                          ),
                         ),
                       if (_loading)
                         const Center(
@@ -216,7 +209,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.7),
+                            color: Colors.black.withOpacity(0.7),
                             borderRadius: BorderRadius.circular(5),
                           ),
                           child: Row(
@@ -252,7 +245,7 @@ class _MiniPlayerState extends State<MiniPlayer>
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.65),
+                              color: Colors.black.withOpacity(0.65),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.close_rounded,

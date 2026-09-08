@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
 
 import 'services/storage.dart';
 import 'theme/nova_theme.dart';
@@ -8,8 +7,6 @@ import 'screens/portals_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialisation du moteur video pro (media_kit / libmpv).
-  MediaKit.ensureInitialized();
   await Storage.init();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(const NovaApp());

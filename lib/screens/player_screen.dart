@@ -2,10 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
-// Acces bas niveau au moteur (pour pousser le volume au-dela de 100%).
-import 'package:media_kit/src/player/native/player/real.dart' as mpv_native;
+import 'package:video_player/video_player.dart';
 
 import '../models/models.dart';
 import '../services/epg_service.dart';
@@ -73,11 +70,6 @@ class _Picture {
 }
 
 /// Lecteur NOVA plein ecran.
-///
-/// v8 : moteur video PRO (media_kit / libmpv) :
-///  - decodage materiel rendu plus fluide sur les grandes chaines HD
-///  - buffer renforce : moins de micro-coupures sur les flux instables
-///  - VRAI boost sonore : le volume peut depasser 100% (jusqu'a 200%)
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
   final List<Channel> playlist;
@@ -98,15 +90,11 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen>
     with TickerProviderStateMixin {
-  late final Player _player;
-  late final VideoController _vc;
-  final List<StreamSubscription> _subs = [];
+  VideoPlayerController? _controller;
   late final AnimationController _pulse;
 
   late Channel _current;
-  bool _ready = false;
-  bool _connecting = true;
-  bool _buffering = false;
+  bool _loading = true;
   String _error = '';
   bool _ui = true;
   bool _ambilight = true;
@@ -116,7 +104,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   int _pictureIndex = 0;
   Timer? _hide;
   List<EpgProgram> _programs = [];
-  int _playSeq = 0;
 
   // Panneau de reglages pilotable a la telecommande :
   // OK l'ouvre, les fleches naviguent entre les boutons, OK valide.
@@ -132,9 +119,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     _Picture('Nuit', 0.92, 0.90, -0.10, 0.05),
   ];
 
-  static const String _ua =
-      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36';
-
   @override
   void initState() {
     super.initState();
@@ -143,36 +127,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_pictureIndex >= _pictures.length) _pictureIndex = 0;
     _boost = Storage.getBool('boost');
     _ambilight = Storage.getBool('ambilight', fallback: true);
-
-    // Moteur video pro : gros buffer = lectura fluide.
-    _player = Player(
-      configuration: PlayerConfiguration(
-        bufferSize: 64 * 1024 * 1024,
-        title: 'NOVA TV',
-      ),
-    );
-    _vc = VideoController(_player);
-    // Autorise le volume au-dela de 100% (le vrai boost).
-    // On passe par le moteur natif avec ceinture + bretelles (try/catch) :
-    // si jamais ca echoue, le volume reste simplement plafonne a 100%.
-    _setMpvProperty('volume-max', '200');
-
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
     )..repeat(reverse: true);
-
-    _subs.add(_player.stream.buffering.listen((b) {
-      if (mounted && _buffering != b) setState(() => _buffering = b);
-    }));
-    _subs.add(_player.stream.error.listen((e) {
-      if (!mounted || e.isEmpty) return;
-      setState(() {
-        _connecting = false;
-        _error = e;
-      });
-    }));
-
     _play(_current);
     _scheduleHide();
   }
@@ -180,34 +138,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     _hide?.cancel();
-    for (final s in _subs) {
-      s.cancel();
-    }
     _pulse.dispose();
     _firstCtrl.dispose();
-    _player.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
-  /// Regle une propriete du moteur mpv, sans risque : si la plateforme
-  /// ne le permet pas, on ignore silencieusement.
-  Future<void> _setMpvProperty(String key, String value) async {
-    try {
-      final platform = _player.platform;
-      if (platform is mpv_native.NativePlayer) {
-        await platform.setProperty(key, value);
-      }
-    } catch (_) {}
-  }
-
   Future<void> _play(Channel c) async {
-    final seq = ++_playSeq;
     setState(() {
-      _connecting = true;
+      _loading = true;
       _error = '';
-      _ready = false;
       _current = c;
     });
+
+    final old = _controller;
+    _controller = null;
+    await old?.dispose();
 
     try {
       var url = c.streamUrl;
@@ -216,21 +162,32 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       if (url.isEmpty) throw Exception('Flux indisponible');
 
-      await _player.open(Media(url, httpHeaders: {'User-Agent': _ua}),
-          play: true);
-      await _applyVolume();
+      final ctrl = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        httpHeaders: const {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+        },
+      );
+
+      await ctrl.initialize().timeout(const Duration(seconds: 45));
+      await ctrl.setVolume(_effectiveVolume);
+      await ctrl.play();
       await Storage.setLastChannel(c.id);
 
-      if (!mounted || seq != _playSeq) return;
+      if (!mounted) {
+        await ctrl.dispose();
+        return;
+      }
       setState(() {
-        _ready = true;
-        _connecting = false;
+        _controller = ctrl;
+        _loading = false;
       });
       _loadEpg(c);
     } catch (e) {
-      if (!mounted || seq != _playSeq) return;
+      if (!mounted) return;
       setState(() {
-        _connecting = false;
+        _loading = false;
         _error = e.toString().replaceFirst('Exception: ', '');
       });
     }
@@ -247,14 +204,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     setState(() => _programs = p);
   }
 
-  /// Volume en pourcent. Le mode Boost monte jusqu'a 160-200%
-  /// (possible grace au nouveau moteur, inaudible avant).
-  double get _volumePct {
-    final v = _boost ? _volume * 160.0 : _volume * 100.0;
-    return v.clamp(0.0, 200.0);
+  /// Le mode Boost pousse le gain au-dela de 100% pour les flux trop faibles.
+  double get _effectiveVolume {
+    final v = _boost ? _volume * 1.6 : _volume;
+    return v > 1.0 ? 1.0 : v;
   }
-
-  Future<void> _applyVolume() => _player.setVolume(_volumePct);
 
   void _scheduleHide() {
     _hide?.cancel();
@@ -298,19 +252,25 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _setVolume(double v) async {
     final nv = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
     setState(() => _volume = nv);
-    await _applyVolume();
+    await _controller?.setVolume(_effectiveVolume);
     _wake();
   }
 
   Future<void> _toggleBoost() async {
     setState(() => _boost = !_boost);
     await Storage.setBool('boost', _boost);
-    await _applyVolume();
+    await _controller?.setVolume(_effectiveVolume);
     _wake();
   }
 
   void _togglePlay() {
-    _player.playOrPause();
+    final c = _controller;
+    if (c == null) return;
+    if (c.value.isPlaying) {
+      c.pause();
+    } else {
+      c.play();
+    }
     _wake();
   }
 
@@ -359,22 +319,23 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ctrl = _controller;
     final neutral = _pictureIndex == 0;
 
     Widget video = const SizedBox.shrink();
-    if (_ready) {
-      video = Video(
-        controller: _vc,
+    if (ctrl != null && ctrl.value.isInitialized) {
+      video = FittedBox(
         fit: _fit,
-        filterQuality: FilterQuality.medium,
-        controls: (state) => const SizedBox.shrink(),
+        child: SizedBox(
+          width: ctrl.value.size.width,
+          height: ctrl.value.size.height,
+          child: VideoPlayer(ctrl),
+        ),
       );
       if (!neutral) {
         video = ColorFiltered(colorFilter: _colorFilter(), child: video);
       }
     }
-
-    final showLoading = _connecting || _buffering;
 
     // En mode "panneau", les fleches servent a naviguer entre les boutons :
     // on desactive donc les raccourcis fleches (zap/volume).
@@ -459,7 +420,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 children: [
                   if (_ambilight) _ambilightLayer(),
                   Center(child: video),
-                  if (showLoading && _error.isEmpty) _loadingLayer(),
+                  if (_loading) _loadingLayer(),
                   if (_error.isNotEmpty) _errorLayer(),
                   AnimatedOpacity(
                     opacity: _ui ? 1 : 0,
@@ -485,8 +446,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 center: Alignment(-0.6 + t * 1.2, -0.6 + t * 0.8),
                 radius: 1.1 + t * 0.35,
                 colors: [
-                  NovaColors.violet.withValues(alpha: 0.32 + t * 0.12),
-                  NovaColors.cyan.withValues(alpha: 0.16),
+                  NovaColors.violet.withOpacity(0.32 + t * 0.12),
+                  NovaColors.cyan.withOpacity(0.16),
                   Colors.black,
                 ],
                 stops: const [0.0, 0.45, 1.0],
@@ -621,8 +582,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           _chip(Icons.smart_button_rounded, 'OK : reglages', active: true),
           _chip(Icons.tune_rounded, 'Image : ${_pictures[_pictureIndex].name}',
               active: _pictureIndex != 0),
-          _chip(Icons.volume_up_rounded,
-              'Volume ${_volumePct.round()}%'),
+          _chip(Icons.volume_up_rounded, 'Volume ${(_volume * 100).round()}%'),
           _chip(Icons.graphic_eq_rounded,
               'Boost son : ${_boost ? "on" : "off"}',
               active: _boost),
@@ -681,7 +641,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
             _PlayerBtn(
               icon: Icons.add_rounded,
-              label: 'Vol + ${_volumePct.round()}%',
+              label: 'Vol + ${(_volume * 100).round()}%',
               onTap: () {
                 _setVolume(_volume + 0.1);
               },
@@ -766,7 +726,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             child: LinearProgressIndicator(
               value: now.progress,
               minHeight: 3,
-              backgroundColor: Colors.white.withValues(alpha: 0.15),
+              backgroundColor: Colors.white.withOpacity(0.15),
               valueColor: const AlwaysStoppedAnimation(NovaColors.cyan),
             ),
           ),
@@ -800,12 +760,12 @@ class _PlayerScreenState extends State<PlayerScreen>
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
           gradient: active ? NovaColors.brand : null,
-          color: active ? null : Colors.white.withValues(alpha: 0.08),
+          color: active ? null : Colors.white.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: active
                 ? Colors.transparent
-                : Colors.white.withValues(alpha: 0.12),
+                : Colors.white.withOpacity(0.12),
           ),
         ),
         child: Row(
@@ -903,20 +863,20 @@ class _PlayerBtnState extends State<_PlayerBtn> {
                 gradient: widget.active && !_f ? NovaColors.brand : null,
                 color: widget.active && !_f
                     ? null
-                    : Colors.white.withValues(alpha: _f ? 0.20 : 0.08),
+                    : Colors.white.withOpacity(_f ? 0.20 : 0.08),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: _f
                       ? NovaColors.cyan
                       : (widget.danger
-                          ? Colors.redAccent.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.12)),
+                          ? Colors.redAccent.withOpacity(0.5)
+                          : Colors.white.withOpacity(0.12)),
                   width: _f ? 2.2 : 1,
                 ),
                 boxShadow: _f
                     ? [
                         BoxShadow(
-                          color: NovaColors.cyan.withValues(alpha: 0.35),
+                          color: NovaColors.cyan.withOpacity(0.35),
                           blurRadius: 16,
                         ),
                       ]
