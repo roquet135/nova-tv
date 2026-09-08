@@ -1,7 +1,7 @@
 name: nova_tv
 description: NOVA TV - Lecteur IPTV pour Android TV, Google TV et Fire TV
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -10,9 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Lecteur video officiel Flutter (ExoPlayer sous Android).
-  # Gere HLS (.m3u8), DASH, MP4, TS. Compile sans configuration NDK.
-  video_player: 2.9.2
+  # Moteur video PRO v8 : media_kit (libmpv).
+  # - decodage materiel : image plus fluide sur les chaines HD/4K
+  # - gros buffer configurable : moins de micro-coupures
+  # - volume boostable au-dela de 100% (jusqu'a 200%)
+  media_kit: 1.1.10+1
+  media_kit_video: 1.2.4
+  media_kit_libs_video: 1.0.4
 
   # Reseau
   http: 1.2.2

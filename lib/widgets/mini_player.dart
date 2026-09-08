@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/models.dart';
 import '../services/stalker_service.dart';
@@ -11,6 +12,7 @@ import '../theme/nova_theme.dart';
 ///
 /// Premier clic sur une chaine : elle demarre ici, en petit, sans quitter
 /// la liste. Deuxieme clic sur la meme chaine : plein ecran.
+/// v8 : meme moteur video pro (media_kit) que le plein ecran.
 class MiniPlayer extends StatefulWidget {
   final Channel? channel;
   final StalkerService? stalker;
@@ -35,19 +37,37 @@ class MiniPlayer extends StatefulWidget {
 
 class _MiniPlayerState extends State<MiniPlayer>
     with SingleTickerProviderStateMixin {
-  VideoPlayerController? _ctrl;
+  late final Player _player;
+  late final VideoController _vc;
+  final List<StreamSubscription> _subs = [];
   late final AnimationController _pulse;
   bool _loading = false;
   String _error = '';
   String _loadedId = '';
+  bool _ready = false;
+  int _openSeq = 0;
+
+  static const String _ua =
+      'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36';
 
   @override
   void initState() {
     super.initState();
+    _player = Player(
+      configuration: PlayerConfiguration(bufferSize: 16 * 1024 * 1024),
+    );
+    _vc = VideoController(_player);
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
+    _subs.add(_player.stream.error.listen((e) {
+      if (!mounted || e.isEmpty) return;
+      setState(() {
+        _loading = false;
+        _error = 'Lien mort';
+      });
+    }));
     if (widget.channel != null) _open(widget.channel!);
   }
 
@@ -56,7 +76,7 @@ class _MiniPlayerState extends State<MiniPlayer>
     super.didUpdateWidget(old);
     final c = widget.channel;
     if (c == null) {
-      _dispose();
+      _stopStream();
     } else if (c.id != _loadedId) {
       _open(c);
     }
@@ -64,29 +84,29 @@ class _MiniPlayerState extends State<MiniPlayer>
 
   @override
   void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
     _pulse.dispose();
-    _ctrl?.dispose();
+    _player.dispose();
     super.dispose();
   }
 
-  void _dispose() {
-    final old = _ctrl;
-    _ctrl = null;
+  void _stopStream() {
     _loadedId = '';
-    old?.dispose();
-    if (mounted) setState(() {});
+    _openSeq++;
+    _player.stop();
+    if (mounted) setState(() => _ready = false);
   }
 
   Future<void> _open(Channel c) async {
+    final seq = ++_openSeq;
     _loadedId = c.id;
     setState(() {
       _loading = true;
       _error = '';
+      _ready = false;
     });
-
-    final old = _ctrl;
-    _ctrl = null;
-    await old?.dispose();
 
     try {
       var url = c.streamUrl;
@@ -95,27 +115,18 @@ class _MiniPlayerState extends State<MiniPlayer>
       }
       if (url.isEmpty) throw Exception('Flux vide');
 
-      final ctrl = VideoPlayerController.networkUrl(
-        Uri.parse(url),
-        httpHeaders: const {
-          'User-Agent':
-              'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-        },
-      );
-      await ctrl.initialize().timeout(const Duration(seconds: 25));
-      await ctrl.setVolume(0.6);
-      await ctrl.play();
+      await _player.stop();
+      await _player.open(Media(url, httpHeaders: {'User-Agent': _ua}),
+          play: true);
+      await _player.setVolume(60);
 
-      if (!mounted || _loadedId != c.id) {
-        await ctrl.dispose();
-        return;
-      }
+      if (!mounted || seq != _openSeq || _loadedId != c.id) return;
       setState(() {
-        _ctrl = ctrl;
+        _ready = true;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted || _loadedId != c.id) return;
+      if (!mounted || seq != _openSeq || _loadedId != c.id) return;
       setState(() {
         _loading = false;
         _error = 'Lien mort';
@@ -127,7 +138,6 @@ class _MiniPlayerState extends State<MiniPlayer>
   Widget build(BuildContext context) {
     final c = widget.channel;
     if (c == null) return const SizedBox.shrink();
-    final ctrl = _ctrl;
 
     return AnimatedBuilder(
       animation: _pulse,
@@ -168,14 +178,11 @@ class _MiniPlayerState extends State<MiniPlayer>
                     fit: StackFit.expand,
                     children: [
                       Container(color: Colors.black),
-                      if (ctrl != null && ctrl.value.isInitialized)
-                        FittedBox(
+                      if (_ready)
+                        Video(
+                          controller: _vc,
                           fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: ctrl.value.size.width,
-                            height: ctrl.value.size.height,
-                            child: VideoPlayer(ctrl),
-                          ),
+                          controls: (state) => const SizedBox.shrink(),
                         ),
                       if (_loading)
                         const Center(
