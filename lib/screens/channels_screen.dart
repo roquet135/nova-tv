@@ -118,6 +118,17 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           await s.handshake();
           _live = await s.liveChannels();
           _stalker = s;
+          // v10.1 : films et series aussi, meme sur un portail Stalker.
+          try {
+            _movies = await s.fetchVod();
+          } catch (_) {
+            _movies = [];
+          }
+          try {
+            _series = await s.fetchSeries();
+          } catch (_) {
+            _series = [];
+          }
           break;
       }
 
@@ -896,8 +907,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        MovieDetailScreen(movie: m, xtream: _xtream),
+                    builder: (_) => MovieDetailScreen(
+                      movie: m,
+                      xtream: _xtream,
+                      stalker: _stalker,
+                    ),
                   ),
                 );
               },
@@ -938,11 +952,14 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                   _confirmHide(s.id, s.name);
                   return;
                 }
-                if (x == null) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => SeriesDetailScreen(series: s, xtream: x),
+                    builder: (_) => SeriesDetailScreen(
+                      series: s,
+                      xtream: x,
+                      stalker: _stalker,
+                    ),
                   ),
                 );
               },

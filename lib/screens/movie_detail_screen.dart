@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/stalker_service.dart';
 import '../services/xtream_service.dart';
 import '../theme/nova_theme.dart';
 import '../widgets/download_sheet.dart';
@@ -12,8 +13,10 @@ import 'player_screen.dart';
 class MovieDetailScreen extends StatefulWidget {
   final Movie movie;
   final XtreamService? xtream;
+  final StalkerService? stalker;
 
-  const MovieDetailScreen({super.key, required this.movie, this.xtream});
+  const MovieDetailScreen(
+      {super.key, required this.movie, this.xtream, this.stalker});
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -42,13 +45,25 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         builder: (_) => PlayerScreen(
           channel: widget.movie.toChannel(),
           playlist: const [],
+          stalker: widget.stalker,
         ),
       ),
     );
   }
 
   /// Garder le film sur la box pour le regarder hors-ligne.
-  void _download() {
+  Future<void> _download() async {
+    // Sur un portail Stalker : traduit la commande en vraie URL d'abord.
+    var url = widget.movie.streamUrl;
+    final st = widget.stalker;
+    if (st != null && !url.startsWith('http')) {
+      try {
+        url = await st.resolveSmart(widget.movie.id, url);
+      } catch (_) {
+        return;
+      }
+    }
+    if (!mounted) return;
     showDownloadSheet(
       context,
       contentId: widget.movie.id,
@@ -56,7 +71,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       name: widget.movie.name,
       poster: widget.movie.poster,
       group: widget.movie.group,
-      streamUrl: widget.movie.streamUrl,
+      streamUrl: url,
     );
   }
 

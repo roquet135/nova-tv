@@ -159,7 +159,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       var url = c.streamUrl;
       if (widget.stalker != null && !url.startsWith('http')) {
-        url = await widget.stalker!.resolveLink(url);
+        // v10.1 : resolution intelligente live / film / episode,
+        // qui sait negocier le bon create_link pour chaque contenu.
+        url = await widget.stalker!.resolveSmart(c.id, url);
       }
       if (url.isEmpty) throw Exception('Flux indisponible');
 

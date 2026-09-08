@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/models.dart';
+import '../services/stalker_service.dart';
 import '../services/storage.dart';
 import '../services/xtream_service.dart';
 import '../theme/nova_theme.dart';
@@ -11,14 +12,17 @@ import '../widgets/nova_widgets.dart';
 import 'player_screen.dart';
 
 /// Fiche d'une serie : jaquette, resume, saisons et episodes.
+/// Marche avec un portail Xtream OU un portail Stalker (v10.1).
 class SeriesDetailScreen extends StatefulWidget {
   final Series series;
-  final XtreamService xtream;
+  final XtreamService? xtream;
+  final StalkerService? stalker;
 
   const SeriesDetailScreen({
     super.key,
     required this.series,
-    required this.xtream,
+    this.xtream,
+    this.stalker,
   });
 
   @override
@@ -37,7 +41,15 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Future<void> _load() async {
-    final eps = await widget.xtream.episodes(widget.series);
+    Map<int, List<Episode>> eps;
+    final x = widget.xtream;
+    if (x != null) {
+      eps = await x.episodes(widget.series);
+    } else if (widget.stalker != null) {
+      eps = await widget.stalker!.fetchEpisodes(widget.series);
+    } else {
+      eps = {};
+    }
     if (!mounted) return;
     final keys = eps.keys.toList()..sort();
     setState(() {
@@ -55,6 +67,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
         builder: (_) => PlayerScreen(
           channel: e.toChannel(),
           playlist: list.map((x) => x.toChannel()).toList(),
+          stalker: widget.stalker,
         ),
       ),
     );
@@ -307,6 +320,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                             _EpisodeDownloadButton(
                                               episode: e,
                                               seriesName: s.name,
+                                              stalker: widget.stalker,
                                             ),
                                             const SizedBox(width: 8),
                                             const Icon(
@@ -354,10 +368,12 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 class _EpisodeDownloadButton extends StatefulWidget {
   final Episode episode;
   final String seriesName;
+  final StalkerService? stalker;
 
   const _EpisodeDownloadButton({
     required this.episode,
     required this.seriesName,
+    this.stalker,
   });
 
   @override
@@ -367,8 +383,20 @@ class _EpisodeDownloadButton extends StatefulWidget {
 class _EpisodeDownloadButtonState extends State<_EpisodeDownloadButton> {
   bool _f = false;
 
-  void _download() {
+  Future<void> _download() async {
     if (Storage.isDownloaded(widget.episode.id)) return;
+    // Sur un portail Stalker, la commande n'est pas telechargeable telle
+    // quelle : on la traduit d'abord en vraie URL.
+    var url = widget.episode.streamUrl;
+    final st = widget.stalker;
+    if (st != null && !url.startsWith('http')) {
+      try {
+        url = await st.resolveSmart(widget.episode.id, url);
+      } catch (_) {
+        return;
+      }
+    }
+    if (!mounted) return;
     showDownloadSheet(
       context,
       contentId: widget.episode.id,
@@ -376,7 +404,7 @@ class _EpisodeDownloadButtonState extends State<_EpisodeDownloadButton> {
       name: '${widget.seriesName} - ${widget.episode.name}',
       poster: widget.episode.image,
       group: 'Series',
-      streamUrl: widget.episode.streamUrl,
+      streamUrl: url,
       season: widget.episode.season,
       episode: widget.episode.episode,
     ).then((_) {
