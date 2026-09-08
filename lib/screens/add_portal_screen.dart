@@ -38,11 +38,12 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
     super.initState();
     for (var i = 0; i < _fieldNodes.length; i++) {
       final idx = i;
-      _fieldNodes[i].onFocusChange = () {
+      // addListener : compatible toutes versions de Flutter.
+      _fieldNodes[i].addListener(() {
         if (_fieldNodes[idx].hasFocus && mounted) {
           setState(() => _activeField = idx);
         }
-      };
+      });
     }
   }
 

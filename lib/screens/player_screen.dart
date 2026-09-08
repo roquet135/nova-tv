@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+// Acces bas niveau au moteur (pour pousser le volume au-dela de 100%).
+import 'package:media_kit/src/player/native/player/real.dart' as mpv_native;
 
 import '../models/models.dart';
 import '../services/epg_service.dart';
@@ -151,7 +153,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
     _vc = VideoController(_player);
     // Autorise le volume au-dela de 100% (le vrai boost).
-    _player.setProperty('volume-max', '200');
+    // On passe par le moteur natif avec ceinture + bretelles (try/catch) :
+    // si jamais ca echoue, le volume reste simplement plafonne a 100%.
+    _setMpvProperty('volume-max', '200');
 
     _pulse = AnimationController(
       vsync: this,
@@ -183,6 +187,17 @@ class _PlayerScreenState extends State<PlayerScreen>
     _firstCtrl.dispose();
     _player.dispose();
     super.dispose();
+  }
+
+  /// Regle une propriete du moteur mpv, sans risque : si la plateforme
+  /// ne le permet pas, on ignore silencieusement.
+  Future<void> _setMpvProperty(String key, String value) async {
+    try {
+      final platform = _player.platform;
+      if (platform is mpv_native.NativePlayer) {
+        await platform.setProperty(key, value);
+      }
+    } catch (_) {}
   }
 
   Future<void> _play(Channel c) async {
