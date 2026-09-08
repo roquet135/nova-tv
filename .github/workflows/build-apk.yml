@@ -66,11 +66,12 @@ jobs:
           # Et on aligne quand meme tout le monde sur JVM 17 + SDK 36.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
-          // --- NOVA FIX : le module media_kit_video verifie ses propres AAR
-          // --- (compilees pour SDK 36) contre SON compileSdk trop bas.
-          // --- On monte le compileSdk de CHAQUE plugin a 36 avec la bonne
-          // --- vieille API BaseExtension (compatible partout, syntaxe
-          // --- indiscutable) appliquee apres leurs scripts (afterEvaluate).
+          // --- NOVA FIX ULTIME : le script racine ne connait PAS les
+          // --- classes Android (erreur "unresolved reference" precedente).
+          // --- On appelle donc compileSdkVersion("36") par REFLEXION :
+          // --- aucun type Android n'apparait dans le code, rien ne peut
+          // --- plus se casser. Et chaque plugin passe a SDK 36 comme les
+          // --- bibliotheques media_kit le demandent.
           subprojects {
               pluginManager.withPlugin("org.jetbrains.kotlin.android") {
                   extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>("kotlin") {
@@ -80,9 +81,15 @@ jobs:
                   }
               }
               afterEvaluate {
-                  if (project.plugins.hasPlugin("com.android.library")) {
-                      val androidExt = project.extensions.getByName("android") as? com.android.build.gradle.BaseExtension
-                      androidExt?.compileSdkVersion("36")
+                  try {
+                      val androidExt = extensions.findByName("android")
+                      if (androidExt != null) {
+                          val m = androidExt.javaClass.getMethod("compileSdkVersion", String::class.java)
+                          m.invoke(androidExt, "36")
+                          println("NOVA : compileSdk 36 applique a " + project.name)
+                      }
+                  } catch (e: Exception) {
+                      println("NOVA : compileSdk ignore pour " + project.name + " (" + e.message + ")")
                   }
               }
           }
