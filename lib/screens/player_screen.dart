@@ -47,6 +47,16 @@ class _BoostIntent extends Intent {
   const _BoostIntent();
 }
 
+/// OK en mode normal : ouvre le panneau des reglages focusable.
+class _OpenCtrlsIntent extends Intent {
+  const _OpenCtrlsIntent();
+}
+
+/// Retour quand le panneau est ouvert : referme le panneau.
+class _ExitCtrlsIntent extends Intent {
+  const _ExitCtrlsIntent();
+}
+
 /// Profil d'image applique par-dessus la video.
 class _Picture {
   final String name;
@@ -95,6 +105,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _hide;
   List<EpgProgram> _programs = [];
 
+  // Panneau de reglages pilotable a la telecommande :
+  // OK l'ouvre, les fleches naviguent entre les boutons, OK valide.
+  bool _ctrls = false;
+  final FocusNode _firstCtrl = FocusNode(debugLabel: 'firstCtrl');
+
   /// Profils d'image. Standard laisse le flux intact.
   static const List<_Picture> _pictures = [
     _Picture('Standard', 1.00, 1.00, 0.00, 0.00),
@@ -124,6 +139,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   void dispose() {
     _hide?.cancel();
     _pulse.dispose();
+    _firstCtrl.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -196,14 +212,30 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _scheduleHide() {
     _hide?.cancel();
-    _hide = Timer(const Duration(seconds: 5), () {
-      if (mounted) setState(() => _ui = false);
+    _hide = Timer(const Duration(seconds: 6), () {
+      // On ne masque pas l'interface pendant la navigation dans le panneau.
+      if (mounted && !_ctrls) setState(() => _ui = false);
     });
   }
 
   void _wake() {
     setState(() => _ui = true);
     _scheduleHide();
+  }
+
+  // --- Panneau de reglages telecommande ---
+
+  void _enterCtrls() {
+    setState(() => _ctrls = true);
+    _wake();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _firstCtrl.requestFocus();
+    });
+  }
+
+  void _exitCtrls() {
+    setState(() => _ctrls = false);
+    _wake();
   }
 
   void _zap(int delta) {
@@ -305,21 +337,31 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     }
 
+    // En mode "panneau", les fleches servent a naviguer entre les boutons :
+    // on desactive donc les raccourcis fleches (zap/volume).
+    final Map<ShortcutActivator, Intent> shortcuts = _ctrls
+        ? const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.goBack): _ExitCtrlsIntent(),
+            SingleActivator(LogicalKeyboardKey.escape): _ExitCtrlsIntent(),
+          }
+        : const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.arrowUp): _ZapUpIntent(),
+            SingleActivator(LogicalKeyboardKey.arrowDown): _ZapDownIntent(),
+            SingleActivator(LogicalKeyboardKey.arrowRight): _VolUpIntent(),
+            SingleActivator(LogicalKeyboardKey.arrowLeft): _VolDownIntent(),
+            SingleActivator(LogicalKeyboardKey.select): _OpenCtrlsIntent(),
+            SingleActivator(LogicalKeyboardKey.enter): _OpenCtrlsIntent(),
+            SingleActivator(LogicalKeyboardKey.space): _PlayPauseIntent(),
+            SingleActivator(LogicalKeyboardKey.mediaPlayPause):
+                _PlayPauseIntent(),
+            SingleActivator(LogicalKeyboardKey.keyZ): _FitIntent(),
+            SingleActivator(LogicalKeyboardKey.keyL): _AmbilightIntent(),
+            SingleActivator(LogicalKeyboardKey.keyI): _PictureIntent(),
+            SingleActivator(LogicalKeyboardKey.keyB): _BoostIntent(),
+          };
+
     return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.arrowUp): _ZapUpIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowDown): _ZapDownIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight): _VolUpIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft): _VolDownIntent(),
-        SingleActivator(LogicalKeyboardKey.select): _PlayPauseIntent(),
-        SingleActivator(LogicalKeyboardKey.enter): _PlayPauseIntent(),
-        SingleActivator(LogicalKeyboardKey.space): _PlayPauseIntent(),
-        SingleActivator(LogicalKeyboardKey.mediaPlayPause): _PlayPauseIntent(),
-        SingleActivator(LogicalKeyboardKey.keyZ): _FitIntent(),
-        SingleActivator(LogicalKeyboardKey.keyL): _AmbilightIntent(),
-        SingleActivator(LogicalKeyboardKey.keyI): _PictureIntent(),
-        SingleActivator(LogicalKeyboardKey.keyB): _BoostIntent(),
-      },
+      shortcuts: shortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
           _ZapUpIntent: CallbackAction<_ZapUpIntent>(onInvoke: (i) {
@@ -356,6 +398,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           }),
           _BoostIntent: CallbackAction<_BoostIntent>(onInvoke: (i) {
             _toggleBoost();
+            return null;
+          }),
+          _OpenCtrlsIntent: CallbackAction<_OpenCtrlsIntent>(onInvoke: (i) {
+            _enterCtrls();
+            return null;
+          }),
+          _ExitCtrlsIntent: CallbackAction<_ExitCtrlsIntent>(onInvoke: (i) {
+            _exitCtrls();
             return null;
           }),
         },
@@ -517,29 +567,107 @@ class _PlayerScreenState extends State<PlayerScreen>
                 colors: [Colors.black87, Colors.transparent],
               ),
             ),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 9,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _chip(Icons.tune_rounded,
-                    'Image : ${_pictures[_pictureIndex].name}   (I)',
-                    active: _pictureIndex != 0),
-                _chip(Icons.volume_up_rounded,
-                    'Volume ${(_volume * 100).round()}%'),
-                _chip(Icons.graphic_eq_rounded,
-                    'Boost son : ${_boost ? "on" : "off"}   (B)',
-                    active: _boost),
-                _chip(Icons.aspect_ratio_rounded,
-                    'Format : ${_fitLabel()}   (Z)'),
-                _chip(Icons.lightbulb_outline_rounded,
-                    'Ambilight : ${_ambilight ? "on" : "off"}   (L)',
-                    active: _ambilight),
-                _chip(Icons.swap_vert_rounded, 'Zapper : haut / bas'),
-              ],
-            ),
+            // Panneau de boutons focusables, ou simples infos + invite OK.
+            child: _ctrls ? _controlsBar() : _infoChips(),
           ),
         ],
+      );
+
+  /// Affichage normal : infos non selectionnables + invite a appuyer sur OK.
+  Widget _infoChips() => Wrap(
+        spacing: 10,
+        runSpacing: 9,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _chip(Icons.smart_button_rounded, 'OK : reglages', active: true),
+          _chip(Icons.tune_rounded, 'Image : ${_pictures[_pictureIndex].name}',
+              active: _pictureIndex != 0),
+          _chip(Icons.volume_up_rounded, 'Volume ${(_volume * 100).round()}%'),
+          _chip(Icons.graphic_eq_rounded,
+              'Boost son : ${_boost ? "on" : "off"}',
+              active: _boost),
+          _chip(Icons.aspect_ratio_rounded, 'Format : ${_fitLabel()}'),
+          _chip(Icons.lightbulb_outline_rounded,
+              'Ambilight : ${_ambilight ? "on" : "off"}',
+              active: _ambilight),
+          _chip(Icons.swap_vert_rounded, 'Zapper : haut / bas'),
+        ],
+      );
+
+  /// Panneau de reglages : chaque bouton est atteignable avec les fleches
+  /// de la telecommande, et se valide avec OK.
+  Widget _controlsBar() => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _PlayerBtn(
+              focusNode: _firstCtrl,
+              icon: Icons.tune_rounded,
+              label: 'Image : ${_pictures[_pictureIndex].name}',
+              active: _pictureIndex != 0,
+              onTap: () {
+                _cyclePicture();
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.aspect_ratio_rounded,
+              label: 'Format : ${_fitLabel()}',
+              onTap: () {
+                _cycleFit();
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.graphic_eq_rounded,
+              label: 'Boost : ${_boost ? "on" : "off"}',
+              active: _boost,
+              onTap: () {
+                _toggleBoost();
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.lightbulb_outline_rounded,
+              label: 'Ambilight : ${_ambilight ? "on" : "off"}',
+              active: _ambilight,
+              onTap: () {
+                _toggleAmbilight();
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.remove_rounded,
+              label: 'Vol -',
+              onTap: () {
+                _setVolume(_volume - 0.1);
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.add_rounded,
+              label: 'Vol + ${(_volume * 100).round()}%',
+              onTap: () {
+                _setVolume(_volume + 0.1);
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.skip_previous_rounded,
+              label: 'Chaine -',
+              onTap: () {
+                _zap(-1);
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.skip_next_rounded,
+              label: 'Chaine +',
+              onTap: () {
+                _zap(1);
+              },
+            ),
+            _PlayerBtn(
+              icon: Icons.close_rounded,
+              label: 'Retour',
+              danger: true,
+              onTap: _exitCtrls,
+            ),
+          ],
+        ),
       );
 
   /// Programme en cours et suivant, facon guide TV.
@@ -675,4 +803,114 @@ class _PlayerScreenState extends State<PlayerScreen>
           );
         },
       );
+}
+
+/// Bouton du panneau plein ecran : focusable aux fleches de la
+/// telecommande, validable avec OK, cliquable a la souris.
+/// Un cadre cyan marque le bouton selectionne.
+class _PlayerBtn extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  final bool danger;
+  final FocusNode? focusNode;
+
+  const _PlayerBtn({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.danger = false,
+    this.focusNode,
+  });
+
+  @override
+  State<_PlayerBtn> createState() => _PlayerBtnState();
+}
+
+class _PlayerBtnState extends State<_PlayerBtn> {
+  bool _f = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: widget.focusNode,
+      onFocusChange: (v) => setState(() => _f = v),
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (intent) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                gradient: widget.active && !_f ? NovaColors.brand : null,
+                color: widget.active && !_f
+                    ? null
+                    : Colors.white.withOpacity(_f ? 0.20 : 0.08),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _f
+                      ? NovaColors.cyan
+                      : (widget.danger
+                          ? Colors.redAccent.withOpacity(0.5)
+                          : Colors.white.withOpacity(0.12)),
+                  width: _f ? 2.2 : 1,
+                ),
+                boxShadow: _f
+                    ? [
+                        BoxShadow(
+                          color: NovaColors.cyan.withOpacity(0.35),
+                          blurRadius: 16,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 14,
+                    color: widget.danger
+                        ? Colors.redAccent
+                        : (widget.active && !_f
+                            ? Colors.white
+                            : NovaColors.cyan),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: (widget.active || _f)
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: widget.danger ? Colors.redAccent : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -17,12 +17,16 @@ class MiniPlayer extends StatefulWidget {
   final VoidCallback onExpand;
   final VoidCallback onClose;
 
+  /// Largeur du mini lecteur (le parent peut l'agrandir pour le centrer).
+  final double width;
+
   const MiniPlayer({
     super.key,
     required this.channel,
     required this.onExpand,
     required this.onClose,
     this.stalker,
+    this.width = 320,
   });
 
   @override
@@ -146,7 +150,7 @@ class _MiniPlayerState extends State<MiniPlayer>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 320,
+          width: widget.width,
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(14),

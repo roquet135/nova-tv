@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/models.dart';
 import '../services/country_filter.dart';
@@ -45,6 +46,9 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   String _group = 'Tout';
   String _country = 'ALL';
   String _query = '';
+
+  // Menu deroulant des pays (replie par defaut)
+  bool _countryOpen = false;
 
   // Mini TV + EPG
   Channel? _preview;
@@ -161,15 +165,18 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       _tab = t;
       _group = 'Tout';
       _query = '';
+      _countryOpen = false;
       _heroMovie = null;
       _heroSeries = null;
     });
   }
 
   Future<void> _setCountry(String code) async {
+    // Le menu se replie tout seul apres le choix.
     setState(() {
       _country = code;
       _group = 'Tout';
+      _countryOpen = false;
     });
     await Storage.setString('country_${widget.portal.id}', code);
   }
@@ -369,61 +376,68 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       body: AuroraBackground(
         intensity: 0.5,
         child: SafeArea(
-          child: Row(
-            children: [
-              // ---------- BARRE LATERALE ----------
-              if (!_loading && _error.isEmpty)
-                CategorySidebar(
-                  title: _tab == _Tab.live
-                      ? 'Chaines'
-                      : (_tab == _Tab.movies ? 'Films' : 'Series'),
-                  items: _sideItems,
-                  selected: _group,
-                  onSelect: (id) => setState(() => _group = id),
-                  query: _query,
-                  onQuery: (v) => setState(() => _query = v),
-                ),
+          // Marge anti-overscan : beaucoup de TV rognent les bords de
+          // l'image. On eloigne tout le contenu des extremites.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(
+              children: [
+                // ---------- BARRE LATERALE ----------
+                if (!_loading && _error.isEmpty)
+                  CategorySidebar(
+                    title: _tab == _Tab.live
+                        ? 'Chaines'
+                        : (_tab == _Tab.movies ? 'Films' : 'Series'),
+                    items: _sideItems,
+                    selected: _group,
+                    onSelect: (id) => setState(() => _group = id),
+                    query: _query,
+                    onQuery: (v) => setState(() => _query = v),
+                  ),
 
-              // ---------- CONTENU ----------
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 24, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _header(hidden),
-                      const SizedBox(height: 12),
-
-                      if (!_loading && _error.isEmpty) ...[
-                        _tabBar(),
-                        const SizedBox(height: 10),
-                        if (_countries.length > 1)
-                          SizedBox(height: 34, child: _countryBar()),
+                // ---------- CONTENU ----------
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 10, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _header(hidden),
                         const SizedBox(height: 12),
 
-                        // Mini TV + EPG en haut (chaines)
-                        if (_tab == _Tab.live && _preview != null) ...[
-                          SizedBox(height: 196, child: _topPreview()),
-                          const SizedBox(height: 14),
+                        if (!_loading && _error.isEmpty) ...[
+                          // 1) MINI TV : centree en haut de l'ecran
+                          if (_tab == _Tab.live && _preview != null) ...[
+                            SizedBox(height: 236, child: _topPreview()),
+                            const SizedBox(height: 12),
+                          ],
+
+                          // 2) ONGLETS TV / FILMS / SERIES : juste en dessous, centres
+                          Center(child: _tabBar()),
+                          const SizedBox(height: 10),
+
+                          // 3) PAYS : menu deroulant qui se replie seul
+                          if (_countries.length > 1) _countryDropdown(),
+                          const SizedBox(height: 12),
+
+                          // Bandeau jaquette + resume (films/series)
+                          if (_tab != _Tab.live && _hero != null) ...[
+                            _hero!,
+                            const SizedBox(height: 14),
+                          ],
                         ],
 
-                        // Bandeau jaquette + resume en haut (films/series)
-                        if (_tab != _Tab.live && _hero != null) ...[
-                          _hero!,
-                          const SizedBox(height: 14),
-                        ],
+                        if (_loading) Expanded(child: _loadingView()),
+                        if (!_loading && _error.isNotEmpty)
+                          Expanded(child: _errorView()),
+                        if (!_loading && _error.isEmpty)
+                          Expanded(child: _body()),
                       ],
-
-                      if (_loading) Expanded(child: _loadingView()),
-                      if (!_loading && _error.isNotEmpty)
-                        Expanded(child: _errorView()),
-                      if (!_loading && _error.isEmpty)
-                        Expanded(child: _body()),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -459,40 +473,44 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return null;
   }
 
-  /// Mini televiseur + guide TV, cote a cote en haut de l'ecran.
+  /// Mini televiseur + guide TV, centres horizontalement en haut de l'ecran.
   Widget _topPreview() {
     final c = _preview!;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        MiniPlayer(
-          channel: c,
-          stalker: _stalker,
-          onClose: () => setState(() {
-            _preview = null;
-            _epg = [];
-          }),
-          onExpand: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PlayerScreen(
-                channel: c,
-                playlist: _fLive,
-                stalker: _stalker,
-                epg: _epgService,
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MiniPlayer(
+            channel: c,
+            stalker: _stalker,
+            onClose: () => setState(() {
+              _preview = null;
+              _epg = [];
+            }),
+            onExpand: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerScreen(
+                  channel: c,
+                  playlist: _fLive,
+                  stalker: _stalker,
+                  epg: _epgService,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: EpgPanel(
-            programs: _epg,
-            loading: _epgLoading,
-            channelName: c.name,
+          const SizedBox(width: 14),
+          SizedBox(
+            width: 320,
+            child: EpgPanel(
+              programs: _epg,
+              loading: _epgLoading,
+              channelName: c.name,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -560,6 +578,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       );
 
   Widget _tabBar() => Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _tabButton(_Tab.live, Icons.live_tv_rounded, 'TV', _live.length),
           const SizedBox(width: 9),
@@ -618,48 +637,62 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     );
   }
 
-  Widget _countryBar() => ListView.separated(
+  /// Menu deroulant du choix de pays : replie par defaut, il affiche
+  /// juste le pays courant. Un tap l'ouvre, le choix le replie.
+  Widget _countryDropdown() {
+    final current = _countries.firstWhere(
+      (c) => c.code == _country,
+      orElse: () => _countries.first,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _TvChip(
+          selected: true,
+          onTap: () => setState(() => _countryOpen = !_countryOpen),
+          leading: current.flag.isNotEmpty
+              ? Text(current.flag, style: const TextStyle(fontSize: 13))
+              : const Icon(Icons.public_rounded,
+                  size: 13, color: NovaColors.cyan),
+          label: current.label,
+          trailing: Icon(
+            _countryOpen
+                ? Icons.keyboard_arrow_up_rounded
+                : Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 180),
+          crossFadeState: _countryOpen
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: SizedBox(height: 38, child: _countryOptions()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _countryOptions() => ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _countries.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final c = _countries[i];
-          final sel = c.code == _country;
-          return GestureDetector(
+          return _TvChip(
+            selected: c.code == _country,
             onTap: () => _setCountry(c.code),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 13),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient: sel ? NovaColors.brand : null,
-                color: sel ? null : NovaColors.surface.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(17),
-                border: Border.all(
-                  color: sel
-                      ? Colors.transparent
-                      : NovaColors.cyan.withOpacity(0.18),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (c.flag.isNotEmpty) ...[
-                    Text(c.flag, style: const TextStyle(fontSize: 13)),
-                    const SizedBox(width: 6),
-                  ] else ...[
-                    const Icon(Icons.public_rounded,
-                        size: 12, color: NovaColors.cyan),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(c.label,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                      )),
-                ],
-              ),
-            ),
+            leading: c.flag.isNotEmpty
+                ? Text(c.flag, style: const TextStyle(fontSize: 13))
+                : const Icon(Icons.public_rounded,
+                    size: 12, color: NovaColors.cyan),
+            label: c.label,
           );
         },
       );
@@ -896,6 +929,95 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Petit pill-bouton compatible telecommande (fleches + OK) ET souris.
+/// Un liseret cyan apparait quand le focus est dessus.
+class _TvChip extends StatefulWidget {
+  final Widget? leading;
+  final String label;
+  final Widget? trailing;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TvChip({
+    required this.label,
+    required this.onTap,
+    this.leading,
+    this.trailing,
+    this.selected = false,
+  });
+
+  @override
+  State<_TvChip> createState() => _TvChipState();
+}
+
+class _TvChipState extends State<_TvChip> {
+  bool _f = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final sel = widget.selected;
+    return Focus(
+      onFocusChange: (v) => setState(() => _f = v),
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (intent) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: sel ? NovaColors.brand : null,
+                color: sel ? null : NovaColors.surface.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(
+                  color: _f
+                      ? NovaColors.cyan
+                      : (sel
+                          ? Colors.transparent
+                          : NovaColors.cyan.withOpacity(0.18)),
+                  width: _f ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.leading != null) ...[
+                    widget.leading!,
+                    const SizedBox(width: 6),
+                  ],
+                  Text(widget.label,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      )),
+                  if (widget.trailing != null) ...[
+                    const SizedBox(width: 6),
+                    widget.trailing!,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
