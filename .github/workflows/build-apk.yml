@@ -66,22 +66,23 @@ jobs:
           # Et on aligne quand meme tout le monde sur JVM 17 + SDK 36.
           cat >> android/build.gradle.kts <<'NOVAPATCH'
 
-          // --- NOVA FIX AAR : neutralise TOUTES les verifications
-          // --- AAR metadata (check*AarMetadata) dans TOUS les modules.
-          // --- Le check est purement theorique : les vieux plugins de
-          // --- media_kit le font echouer, l app tourne pareil sans lui.
-          allprojects {
-              tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") }.configureEach {
-                  enabled = false
-              }
-          }
-          // --- Et on garde la cible JVM 17 partout (fix volume_controller).
+          // --- NOVA FIX : le module media_kit_video verifie ses propres AAR
+          // --- (compilees pour SDK 36) contre SON compileSdk trop bas.
+          // --- On monte le compileSdk de CHAQUE plugin a 36 avec la bonne
+          // --- vieille API BaseExtension (compatible partout, syntaxe
+          // --- indiscutable) appliquee apres leurs scripts (afterEvaluate).
           subprojects {
               pluginManager.withPlugin("org.jetbrains.kotlin.android") {
                   extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>("kotlin") {
                       compilerOptions {
                           jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
                       }
+                  }
+              }
+              afterEvaluate {
+                  if (project.plugins.hasPlugin("com.android.library")) {
+                      val androidExt = project.extensions.getByName("android") as? com.android.build.gradle.BaseExtension
+                      androidExt?.compileSdkVersion("36")
                   }
               }
           }
