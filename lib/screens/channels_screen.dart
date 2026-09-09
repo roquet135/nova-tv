@@ -823,6 +823,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                           : CachedNetworkImage(
                               imageUrl: c.logo,
                               fit: BoxFit.contain,
+                              memCacheWidth: 240,
                               errorWidget: (_, __, ___) => const Icon(
                                   Icons.live_tv_rounded,
                                   size: 28,

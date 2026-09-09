@@ -89,6 +89,7 @@ class _PosterCardState extends State<PosterCard> {
                             CachedNetworkImage(
                               imageUrl: widget.poster,
                               fit: BoxFit.cover,
+                              memCacheWidth: 360,
                               errorWidget: (_, __, ___) => _fallback(),
                               placeholder: (_, __) => Center(
                                 child: Icon(Icons.movie_outlined,

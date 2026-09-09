@@ -87,6 +87,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             CachedNetworkImage(
               imageUrl: m.poster,
               fit: BoxFit.cover,
+              memCacheWidth: 640,
               errorWidget: (_, __, ___) => const SizedBox.shrink(),
             ),
           DecoratedBox(
@@ -123,6 +124,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           : CachedNetworkImage(
                               imageUrl: m.poster,
                               fit: BoxFit.cover,
+                              memCacheWidth: 460,
                               errorWidget: (_, __, ___) => Container(
                                 color: NovaColors.surfaceHigh,
                                 child: const Icon(Icons.movie_outlined,

@@ -107,6 +107,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                               : CachedNetworkImage(
                                   imageUrl: s.poster,
                                   fit: BoxFit.cover,
+                                  memCacheWidth: 420,
                                   errorWidget: (_, __, ___) => Container(
                                     color: NovaColors.surfaceHigh,
                                     child: const Icon(Icons.tv_rounded,
@@ -267,6 +268,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                     : CachedNetworkImage(
                                                         imageUrl: e.image,
                                                         fit: BoxFit.cover,
+                                                        memCacheWidth: 220,
                                                         errorWidget: (_, __,
                                                                 ___) =>
                                                             Container(

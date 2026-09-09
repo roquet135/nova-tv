@@ -2,12 +2,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/nova_theme.dart';
 
-/// Fond anime NOVA : des vagues de couleur qui derivent lentement,
-/// se melangent et respirent. Remplace le fond noir plat.
+/// Fond NOVA : des vagues de couleur composees de degrades radiaux.
 ///
-/// Concu pour tourner en continu sans fatiguer un Fire Stick :
-/// aucun blur coûteux, uniquement des degrades radiaux composes.
-class AuroraBackground extends StatefulWidget {
+/// v10.3 : FIGE volontairement. Avant, la nappe bougeait en continu et
+/// forcait un redessin complet de l'ecran 60 fois par seconde : sur une
+/// box TV modeste, ca donnait des saccades des qu'on defilait dans les
+/// grilles. Peint UNE SEULE FOIS, zero effort ensuite.
+/// (L'animation ne te manque pas ? on te la remettra en option plus tard.)
+class AuroraBackground extends StatelessWidget {
   final Widget child;
 
   /// 0 = calme (ecrans de liste), 1 = intense (accueil)
@@ -20,47 +22,18 @@ class AuroraBackground extends StatefulWidget {
   });
 
   @override
-  State<AuroraBackground> createState() => _AuroraBackgroundState();
-}
-
-class _AuroraBackgroundState extends State<AuroraBackground>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 22),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(color: NovaColors.bg),
-        AnimatedBuilder(
-          animation: _c,
-          builder: (context, _) {
-            return CustomPaint(
-              painter: _AuroraPainter(
-                t: _c.value,
-                intensity: widget.intensity,
-              ),
-            );
-          },
-        ),
-        widget.child,
-      ],
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: NovaColors.bg),
+          CustomPaint(
+            painter: _AuroraPainter(t: 0.31, intensity: intensity),
+          ),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -77,7 +50,7 @@ class _AuroraPainter extends CustomPainter {
     final h = size.height;
     final tau = math.pi * 2;
 
-    // Trois nappes de couleur qui derivent sur des orbites differentes.
+    // Trois nappes de couleur posees a des endroits choisis.
     _blob(
       canvas,
       size,
