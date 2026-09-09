@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'services/storage.dart';
 import 'theme/nova_theme.dart';
 import 'screens/portals_screen.dart';
+import 'widgets/pointer_arrows.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,12 +25,18 @@ class NovaApp extends StatelessWidget {
       title: 'NOVA TV',
       debugShowCheckedModeBanner: false,
       theme: NovaTheme.build(),
-      // Le radar a touches est dessine PAR-DESSUS toutes les pages.
-      builder: (context, child) => Stack(
-        children: [
-          if (child != null) child,
-          const KeyRadarBanner(),
-        ],
+      // Listener = traducteur de balayage ; la pastille radar est
+      // dessinee PAR-DESSUS toutes les pages.
+      builder: (context, child) => Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerHover: PointerArrows.onPointer,
+        onPointerMove: PointerArrows.onPointer,
+        child: Stack(
+          children: [
+            if (child != null) child,
+            const KeyRadarBanner(),
+          ],
+        ),
       ),
       home: const PortalsScreen(),
     );
@@ -37,16 +44,12 @@ class NovaApp extends StatelessWidget {
 }
 
 /// RADAR A TOUCHES : ecoute TOUTES les touches qui arrivent de
-/// l'exterieur (telecommande, clavier, souris a boutons...).
+/// l'exterieur (telecommande, clavier...).
 ///
-/// But : verifier si ta telecommande envoie vraiment des touches.
-/// A chaque pression, une pastille en bas de l'ecran affiche le nom
-/// de la touche recue. Si rien n'apparait quand tu appuies sur les
-/// fleches de ta telecommande, c'est qu'elle est en mode "souris
-/// volante" et n'envoie aucune touche directionnelle a Android.
-///
-/// Secours inclus : si aucun element de l'ecran n'est selectionne
-/// quand une fleche arrive, le radar redonne le focus tout seul.
+/// But : verifier ce que ta telecommande envoie vraiment. A chaque
+/// pression, la pastille en bas affiche le nom de la touche recue.
+/// Secours : si rien n'est selectionne quand une touche arrive, la
+/// selection revient toute seule.
 class KeyRadar {
   /// Derniere touche vue (null = aucune touche recue depuis le depart).
   static final ValueNotifier<KeyEvent?> last = ValueNotifier<KeyEvent?>(null);
@@ -65,9 +68,7 @@ class KeyRadar {
       last.value = e;
     }
     // Filet de securite : une touche arrive mais AUCUN element de
-    // l'ecran n'est selectionne -> on en selectionne un automatiquement
-    // (les telecommandes basiques envoient parfois les touches avant
-    // que Flutter ait eu le temps de placer son premier focus).
+    // l'ecran n'est selectionne -> on en selectionne un automatiquement.
     if (e is KeyDownEvent && FocusManager.instance.primaryFocus == null) {
       final dir = _directionFor(e.logicalKey);
       if (dir != null) {
@@ -88,8 +89,8 @@ class KeyRadar {
   }
 }
 
-/// La pastille du radar : apparait 3 secondes a chaque touche recue,
-/// en bas au centre, sans jamais gener les clics ni le focus.
+/// La pastille du radar : apparait 3 secondes a chaque touche recue ou
+/// chaque fleche simulee, en bas au centre, sans jamais gener les clics.
 class KeyRadarBanner extends StatefulWidget {
   const KeyRadarBanner({super.key});
 
@@ -105,26 +106,37 @@ class _KeyRadarBannerState extends State<KeyRadarBanner> {
   @override
   void initState() {
     super.initState();
-    KeyRadar.last.addListener(_refresh);
+    KeyRadar.last.addListener(_refreshKey);
+    PointerArrows.simMsg.addListener(_refreshSim);
   }
 
   @override
   void dispose() {
-    KeyRadar.last.removeListener(_refresh);
+    KeyRadar.last.removeListener(_refreshKey);
+    PointerArrows.simMsg.removeListener(_refreshSim);
     _timer?.cancel();
     super.dispose();
   }
 
-  void _refresh() {
-    final e = KeyRadar.last.value;
-    if (e == null) return;
-    final k = e.logicalKey;
-    _text = 'TOUCHE VUE : ${k.debugName ?? k.keyLabel}   (x${KeyRadar.count})';
+  void _show(String text) {
+    _text = text;
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _visible = false);
     });
     setState(() => _visible = true);
+  }
+
+  void _refreshKey() {
+    final e = KeyRadar.last.value;
+    if (e == null) return;
+    final k = e.logicalKey;
+    _show('TOUCHE VUE : ${k.debugName ?? k.keyLabel}   (x${KeyRadar.count})');
+  }
+
+  void _refreshSim() {
+    final m = PointerArrows.simMsg.value;
+    if (m != null) _show(m);
   }
 
   @override

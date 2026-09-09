@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/storage.dart';
 import '../theme/nova_theme.dart';
 import '../widgets/nova_widgets.dart';
+import '../widgets/pointer_arrows.dart';
 
 /// Formulaire d'ajout d'un abonnement (M3U, Xtream ou Stalker).
 ///
@@ -44,7 +45,32 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
   final FocusNode _root = FocusNode(debugLabel: 'addPortalRoot');
 
   @override
+  void initState() {
+    super.initState();
+    // Telecommandes qui balayent au lieu d'envoyer des fleches :
+    // ce recepteur recoit les fleches SIMULEES et fait rouler le
+    // curseur virtuel exactement pareil.
+    PointerArrows.handler = (dir) {
+      switch (dir) {
+        case TraversalDirection.up:
+          _move(0, -1);
+          break;
+        case TraversalDirection.down:
+          _move(0, 1);
+          break;
+        case TraversalDirection.left:
+          _move(-1, 0);
+          break;
+        case TraversalDirection.right:
+          _move(1, 0);
+          break;
+      }
+    };
+  }
+
+  @override
   void dispose() {
+    if (PointerArrows.handler != null) PointerArrows.handler = null;
     _name.dispose();
     _url.dispose();
     _user.dispose();
