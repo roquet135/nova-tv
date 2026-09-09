@@ -64,12 +64,16 @@ class KeyRadar {
       count++;
       last.value = e;
     }
-    // Filet de securite : fleche recue mais aucun element selectionne
-    // sur l'ecran -> on en choisit un automatiquement.
+    // Filet de securite : une touche arrive mais AUCUN element de
+    // l'ecran n'est selectionne -> on en selectionne un automatiquement
+    // (les telecommandes basiques envoient parfois les touches avant
+    // que Flutter ait eu le temps de placer son premier focus).
     if (e is KeyDownEvent && FocusManager.instance.primaryFocus == null) {
       final dir = _directionFor(e.logicalKey);
       if (dir != null) {
         FocusManager.instance.rootScope.focusInDirection(dir);
+      } else {
+        FocusManager.instance.rootScope.nextFocus();
       }
     }
     return false; // on laisse toujours la touche continuer son chemin

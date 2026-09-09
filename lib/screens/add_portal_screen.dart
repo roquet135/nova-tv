@@ -175,6 +175,9 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
     // On ignore les relachements, on gere l'appui ET la repetition
     // (maintenir une fleche de telecommande fait defiler).
     if (e is KeyUpEvent) return KeyEventResult.ignored;
+    // Garde-fou : si le focus a ete perdu (dialogue, changement
+    // d'ecran...), on le reprend immediatement.
+    if (!_root.hasFocus) _root.requestFocus();
 
     final key = e.logicalKey;
     if (key == LogicalKeyboardKey.arrowLeft) {
@@ -480,65 +483,86 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
           _charRow(2, _row2),
           _charRow(3, _row3),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            alignment: WrapAlignment.center,
+          // Ligne speciale : 7 touches, largeurs variables, 1 seule ligne.
+          Row(
             children: [
-              _KbKey(
-                label: _caps ? 'MAJ' : 'maj',
-                wide: true,
-                accent: _caps,
-                focused: _isCur(2, 4, 0),
-                onTap: () {
-                  setState(() {
-                    _z = 2;
-                    _r = 4;
-                    _c = 0;
-                    _caps = !_caps;
-                  });
-                },
-              ),
-              _KbKey(
-                label: '@',
-                focused: _isCur(2, 4, 1),
-                onTap: () => _tapSpecial(1),
-              ),
-              _KbKey(
-                label: '_',
-                focused: _isCur(2, 4, 2),
-                onTap: () => _tapSpecial(2),
-              ),
-              _KbKey(
-                label: 'www.',
-                wide: true,
-                focused: _isCur(2, 4, 3),
-                onTap: () => _tapSpecial(3),
-              ),
-              _KbKey(
-                label: '.com',
-                wide: true,
-                focused: _isCur(2, 4, 4),
-                onTap: () => _tapSpecial(4),
-              ),
-              _KbKey(
-                label: 'ESPACE',
-                wide: true,
-                focused: _isCur(2, 4, 5),
-                onTap: () => _tapSpecial(5),
-              ),
-              _KbKey(
-                icon: Icons.backspace_outlined,
-                wide: true,
-                danger: true,
-                focused: _isCur(2, 4, 6),
-                onTap: () => _tapSpecial(6),
-              ),
+              for (var c = 0; c < 7; c++) ...[
+                if (c > 0) const SizedBox(width: 6),
+                Expanded(
+                  flex: [3, 1, 1, 3, 2, 5, 3][c],
+                  child: _specialKey(c),
+                ),
+              ],
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// La c-ieme touche de la ligne speciale (ordre fixe, comme le
+  /// curseur de navigation : MAJ, @, _, www., .com, ESPACE, effacer).
+  Widget _specialKey(int c) {
+    switch (c) {
+      case 0:
+        return _KbKey(
+          label: _caps ? 'MAJ' : 'maj',
+          accent: _caps,
+          focused: _isCur(2, 4, 0),
+          wide: true,
+          onTap: () {
+            setState(() {
+              _z = 2;
+              _r = 4;
+              _c = 0;
+              _caps = !_caps;
+            });
+          },
+        );
+      case 1:
+        return _KbKey(
+          label: '@',
+          focused: _isCur(2, 4, 1),
+          wide: true,
+          onTap: () => _tapSpecial(1),
+        );
+      case 2:
+        return _KbKey(
+          label: '_',
+          focused: _isCur(2, 4, 2),
+          wide: true,
+          onTap: () => _tapSpecial(2),
+        );
+      case 3:
+        return _KbKey(
+          label: 'www.',
+          focused: _isCur(2, 4, 3),
+          wide: true,
+          onTap: () => _tapSpecial(3),
+        );
+      case 4:
+        return _KbKey(
+          label: '.com',
+          focused: _isCur(2, 4, 4),
+          wide: true,
+          onTap: () => _tapSpecial(4),
+        );
+      case 5:
+        return _KbKey(
+          label: 'ESPACE',
+          focused: _isCur(2, 4, 5),
+          wide: true,
+          onTap: () => _tapSpecial(5),
+        );
+      default:
+        return _KbKey(
+          icon: Icons.backspace_outlined,
+          danger: true,
+          focused: _isCur(2, 4, 6),
+          wide: true,
+          onTap: () => _tapSpecial(6),
+        );
+    }
   }
 
   void _tapSpecial(int c) {
@@ -551,25 +575,32 @@ class _AddPortalScreenState extends State<AddPortalScreen> {
   }
 
   Widget _charRow(int r, List<String> keys) {
+    // Une vraie ROW aux cases egales : les touchent ne cassent
+    // jamais a la ligne, meme sur les TV petites resolution.
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
+      child: Row(
         children: [
           for (var c = 0; c < keys.length; c++)
-            _KbKey(
-              label: _caps && r > 0 && r < 4 ? keys[c].toUpperCase() : keys[c],
-              focused: _isCur(2, r, c),
-              onTap: () {
-                setState(() {
-                  _z = 2;
-                  _r = r;
-                  _c = c;
-                });
-                _pressKey(r, c);
-              },
+            Expanded(
+              child: Padding(
+                padding:
+                    EdgeInsets.only(right: c == keys.length - 1 ? 0 : 6),
+                child: _KbKey(
+                  label:
+                      _caps && r > 0 && r < 4 ? keys[c].toUpperCase() : keys[c],
+                  focused: _isCur(2, r, c),
+                  wide: true,
+                  onTap: () {
+                    setState(() {
+                      _z = 2;
+                      _r = r;
+                      _c = c;
+                    });
+                    _pressKey(r, c);
+                  },
+                ),
+              ),
             ),
         ],
       ),
