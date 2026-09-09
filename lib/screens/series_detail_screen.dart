@@ -82,7 +82,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(40, 26, 40, 20),
+          padding: const EdgeInsets.fromLTRB(28, 16, 28, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -97,7 +97,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                         borderRadius: BorderRadius.circular(12),
                         child: SizedBox(
                           width: 190,
-                          height: 285,
+                          height: 224,
                           child: s.poster.isEmpty
                               ? Container(
                                   color: NovaColors.surfaceHigh,
@@ -119,7 +119,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                       Text(
                         s.name,
                         style: const TextStyle(
-                            fontSize: 21,
+                            fontSize: 18,
                             fontWeight: FontWeight.w800,
                             height: 1.2),
                       ),
@@ -146,8 +146,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                         Text(
                           s.plot,
                           style: const TextStyle(
-                            fontSize: 12.5,
-                            height: 1.55,
+                            fontSize: 11.5,
+                            height: 1.45,
                             color: NovaColors.textDim,
                           ),
                         ),
@@ -237,7 +237,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                 child: ListView.separated(
                                   itemCount: eps.length,
                                   separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 10),
+                                      const SizedBox(height: 7),
                                   itemBuilder: (context, i) {
                                     final e = eps[i];
                                     return FocusCard(
@@ -245,15 +245,15 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                       radius: 12,
                                       onTap: () => _playEpisode(e),
                                       child: Padding(
-                                        padding: const EdgeInsets.all(12),
+                                        padding: const EdgeInsets.all(9),
                                         child: Row(
                                           children: [
                                             ClipRRect(
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(7),
                                               child: SizedBox(
-                                                width: 116,
-                                                height: 66,
+                                                width: 90,
+                                                height: 51,
                                                 child: e.image.isEmpty
                                                     ? Container(
                                                         color: NovaColors
@@ -281,7 +281,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                       ),
                                               ),
                                             ),
-                                            const SizedBox(width: 14),
+                                            const SizedBox(width: 10),
                                             Expanded(
                                               child: Column(
                                                 crossAxisAlignment:
@@ -293,7 +293,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                     style: const TextStyle(
-                                                      fontSize: 14,
+                                                      fontSize: 12.5,
                                                       fontWeight:
                                                           FontWeight.w700,
                                                     ),
@@ -306,10 +306,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                       overflow: TextOverflow
                                                           .ellipsis,
                                                       style: const TextStyle(
-                                                        fontSize: 11.5,
+                                                        fontSize: 10.5,
                                                         color:
                                                             NovaColors.textDim,
-                                                        height: 1.4,
+                                                        height: 1.35,
                                                       ),
                                                     ),
                                                   ],

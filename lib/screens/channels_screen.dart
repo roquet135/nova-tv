@@ -412,7 +412,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           // Marge anti-overscan : beaucoup de TV rognent les bords de
           // l'image. On eloigne tout le contenu des extremites.
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
                 // ---------- BARRE LATERALE ----------
@@ -426,37 +426,42 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                     onSelect: (id) => setState(() => _group = id),
                     query: _query,
                     onQuery: (v) => setState(() => _query = v),
+                    width: 196,
                   ),
 
                 // ---------- CONTENU ----------
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 10, 10),
+                    padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _header(hidden),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
 
                         if (!_loading && _error.isEmpty) ...[
                           // 1) MINI TV : centree en haut de l'ecran
                           if (_tab == _Tab.live && _preview != null) ...[
-                            SizedBox(height: 236, child: _topPreview()),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 178, child: _topPreview()),
+                            const SizedBox(height: 10),
                           ],
 
-                          // 2) ONGLETS TV / FILMS / SERIES : juste en dessous, centres
+                          // 2) ONGLETS TV / FILMS / SERIES + PAYS sur la meme ligne, centres
                           Center(child: _tabBar()),
-                          const SizedBox(height: 10),
 
-                          // 3) PAYS : menu deroulant qui se replie seul
-                          if (_countries.length > 1) _countryDropdown(),
-                          const SizedBox(height: 12),
+                          // 3) LISTE DES PAYS : n'apparait que quand le menu est ouvert
+                          if (_countryOpen && _countries.length > 1)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: SizedBox(
+                                  height: 34, child: _countryOptions()),
+                            ),
+                          const SizedBox(height: 8),
 
                           // Bandeau jaquette + resume (films/series)
                           if (_tab != _Tab.live && _hero != null) ...[
                             _hero!,
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 10),
                           ],
                         ],
 
@@ -533,9 +538,9 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 320,
+            width: 272,
             child: EpgPanel(
               programs: _epg,
               loading: _epgLoading,
@@ -549,7 +554,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
 
   Widget _header(int hidden) => Row(
         children: [
-          GradientTitle(widget.portal.name, size: 22),
+          GradientTitle(widget.portal.name, size: 19),
           const Spacer(),
           _iconChip(
             icon: _manageMode
@@ -582,11 +587,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             gradient: active ? NovaColors.brand : null,
             color: active ? null : NovaColors.surface.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: active
                   ? Colors.transparent
@@ -597,11 +602,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon,
-                  size: 15, color: active ? Colors.white : Colors.redAccent),
+                  size: 14, color: active ? Colors.white : Colors.redAccent),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                     color: active ? Colors.white : NovaColors.text,
                   )),
@@ -619,6 +624,11 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           const SizedBox(width: 9),
           _tabButton(_Tab.series, Icons.video_library_rounded, 'Series',
               _series.length),
+          // Pays : meme pilule, meme ligne que les onglets
+          if (_countries.length > 1) ...[
+            const SizedBox(width: 9),
+            _countryPill(),
+          ],
         ],
       );
 
@@ -629,23 +639,23 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
       onTap: empty ? null : () => _switchTab(t),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
         decoration: BoxDecoration(
           gradient: sel ? NovaColors.brand : null,
           color: sel ? null : NovaColors.surface.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(9),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
-                size: 16,
+                size: 15,
                 color:
                     empty ? NovaColors.textDim.withValues(alpha: 0.4) : Colors.white),
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             Text(label,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                   color: empty
                       ? NovaColors.textDim.withValues(alpha: 0.4)
@@ -670,41 +680,29 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     );
   }
 
-  /// Menu deroulant du choix de pays : replie par defaut, il affiche
-  /// juste le pays courant. Un tap l'ouvre, le choix le replie.
-  Widget _countryDropdown() {
+  /// Pilule du pays courant, a meme hauteur que les onglets TV/Films/Series.
+  /// Un tap ouvre (ou replie) la liste des pays affichee juste en dessous.
+  Widget _countryPill() {
     final current = _countries.firstWhere(
       (c) => c.code == _country,
       orElse: () => _countries.first,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _TvChip(
-          selected: true,
-          onTap: () => setState(() => _countryOpen = !_countryOpen),
-          leading: current.flag.isNotEmpty
-              ? Text(current.flag, style: const TextStyle(fontSize: 13))
-              : const Icon(Icons.public_rounded,
-                  size: 13, color: NovaColors.cyan),
-          label: current.label,
-          trailing: Icon(
-            _countryOpen
-                ? Icons.keyboard_arrow_up_rounded
-                : Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: Colors.white,
-          ),
-        ),
-        // La liste des pays n'existe que quand le menu est ouvert :
-        // simple et sans risque sur les vieilles box TV.
-        if (_countryOpen)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: SizedBox(height: 38, child: _countryOptions()),
-          ),
-      ],
+    return _TvChip(
+      selected: true,
+      onTap: () => setState(() => _countryOpen = !_countryOpen),
+      leading: current.flag.isNotEmpty
+          ? Text(current.flag, style: const TextStyle(fontSize: 12))
+          : const Icon(Icons.public_rounded,
+              size: 12, color: NovaColors.cyan),
+      label: current.label,
+      trailing: Icon(
+        _countryOpen
+            ? Icons.keyboard_arrow_up_rounded
+            : Icons.keyboard_arrow_down_rounded,
+        size: 16,
+        color: Colors.white,
+      ),
     );
   }
 
@@ -799,10 +797,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return GridView.builder(
       padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 185,
-        childAspectRatio: 1.32,
-        crossAxisSpacing: 13,
-        mainAxisSpacing: 13,
+        maxCrossAxisExtent: 150,
+        childAspectRatio: 1.42,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -813,21 +811,21 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             FocusCard(
               autofocus: i == 0,
               onTap: () => _tapChannel(c, items),
-              child: Padding(
-                padding: const EdgeInsets.all(9),
-                child: Column(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
                   children: [
                     Expanded(
                       child: c.logo.isEmpty
                           ? Icon(Icons.live_tv_rounded,
-                              size: 36,
+                              size: 28,
                               color: NovaColors.violet.withValues(alpha: 0.6))
                           : CachedNetworkImage(
                               imageUrl: c.logo,
                               fit: BoxFit.contain,
                               errorWidget: (_, __, ___) => const Icon(
                                   Icons.live_tv_rounded,
-                                  size: 36,
+                                  size: 28,
                                   color: NovaColors.textDim),
                               placeholder: (_, __) => const SizedBox(
                                 width: 16,
@@ -844,7 +842,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                         color: playing ? NovaColors.cyan : NovaColors.text,
                       ),
@@ -882,10 +880,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return GridView.builder(
       padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 158,
+        maxCrossAxisExtent: 126,
         childAspectRatio: 0.56,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -930,10 +928,10 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return GridView.builder(
       padding: const EdgeInsets.only(bottom: 12),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 158,
+        maxCrossAxisExtent: 126,
         childAspectRatio: 0.56,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/models.dart';
 import '../services/storage.dart';
 import '../theme/nova_theme.dart';
@@ -207,20 +208,7 @@ class _PortalsScreenState extends State<PortalsScreen> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: GestureDetector(
-                  onTap: () => _delete(p),
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: Colors.redAccent.withValues(alpha: 0.45)),
-                    ),
-                    child: const Icon(Icons.delete_outline_rounded,
-                        size: 15, color: Colors.redAccent),
-                  ),
-                ),
+                child: _TrashButton(onTap: () => _delete(p)),
               ),
             ],
           );
@@ -236,5 +224,66 @@ class _PortalsScreenState extends State<PortalsScreen> {
       case PortalType.stalker:
         return Icons.router_rounded;
     }
+  }
+}
+
+/// Poubelle FOCUSABLE : atteignable aux fleches de la telecommande
+/// (bordure cyan quand elle est selectionnee, OK pour supprimer).
+class _TrashButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _TrashButton({required this.onTap});
+
+  @override
+  State<_TrashButton> createState() => _TrashButtonState();
+}
+
+class _TrashButtonState extends State<_TrashButton> {
+  bool _f = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (v) => setState(() => _f = v),
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (intent) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: _f
+                    ? Colors.redAccent.withValues(alpha: 0.22)
+                    : Colors.black.withValues(alpha: 0.45),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _f
+                      ? NovaColors.cyan
+                      : Colors.redAccent.withValues(alpha: 0.45),
+                  width: _f ? 2 : 1,
+                ),
+              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  size: 15, color: Colors.redAccent),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
