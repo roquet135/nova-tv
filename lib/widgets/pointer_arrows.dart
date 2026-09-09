@@ -72,4 +72,11 @@ class PointerArrows {
       FocusManager.instance.primaryFocus!.focusInDirection(dir);
     }
   }
+
+  /// Diagnostic : chaque appui du pointeur est affiche par la pastille.
+  /// Si ta touche OK centre fait "clic a l'endroit pointe", on le verra.
+  static void onPointerDown(PointerDownEvent e) {
+    simMsg.value =
+        'CLIC VU A (${e.localPosition.dx.round()}, ${e.localPosition.dy.round()})';
+  }
 }

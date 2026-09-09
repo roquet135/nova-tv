@@ -31,15 +31,25 @@ class PosterCard extends StatefulWidget {
 
 class _PosterCardState extends State<PosterCard> {
   bool _f = false;
+  final FocusNode _node = FocusNode();
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Focus(
+      focusNode: _node,
       autofocus: widget.autofocus,
       onFocusChange: (v) {
         setState(() => _f = v);
         if (v) widget.onFocus?.call();
       },
+      child: MouseRegion(
+        onEnter: (_) => _node.requestFocus(),
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
@@ -192,6 +202,7 @@ class _PosterCardState extends State<PosterCard> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

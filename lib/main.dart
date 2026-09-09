@@ -31,6 +31,7 @@ class NovaApp extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         onPointerHover: PointerArrows.onPointer,
         onPointerMove: PointerArrows.onPointer,
+        onPointerDown: PointerArrows.onPointerDown,
         child: Stack(
           children: [
             if (child != null) child,

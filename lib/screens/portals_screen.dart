@@ -240,11 +240,23 @@ class _TrashButton extends StatefulWidget {
 
 class _TrashButtonState extends State<_TrashButton> {
   bool _f = false;
+  final FocusNode _node = FocusNode();
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    // v10.6 : viser la poubelle avec le pointeur la selectionne,
+    // OK la valide ensuite (telecommandes "OK seul").
     return Focus(
+      focusNode: _node,
       onFocusChange: (v) => setState(() => _f = v),
+      child: MouseRegion(
+        onEnter: (_) => _node.requestFocus(),
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
@@ -283,6 +295,7 @@ class _TrashButtonState extends State<_TrashButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

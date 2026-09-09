@@ -994,12 +994,24 @@ class _TvChip extends StatefulWidget {
 
 class _TvChipState extends State<_TvChip> {
   bool _f = false;
+  final FocusNode _node = FocusNode();
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final sel = widget.selected;
+    // v10.6 : viser la puce avec le pointeur la selectionne,
+    // OK la valide ensuite (telecommandes "OK seul").
     return Focus(
+      focusNode: _node,
       onFocusChange: (v) => setState(() => _f = v),
+      child: MouseRegion(
+        onEnter: (_) => _node.requestFocus(),
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
@@ -1055,6 +1067,7 @@ class _TvChipState extends State<_TvChip> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

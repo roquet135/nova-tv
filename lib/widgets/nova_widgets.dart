@@ -24,15 +24,29 @@ class FocusCard extends StatefulWidget {
 
 class _FocusCardState extends State<FocusCard> {
   bool _focused = false;
+  final FocusNode _node = FocusNode();
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     // InkWell gere nativement la touche OK de la telecommande
     // et le clic, sans dependre d'une API clavier instable.
+    //
+    // v10.6 : MouseRegion -> viser avec le pointeur selectionne
+    // l'element. Sur les telecommandes "toutes OK seulement", c'est
+    // ce qui permet enfin d'appuyer OK dessus sans fleches.
     return Focus(
+      focusNode: _node,
       autofocus: widget.autofocus,
       onFocusChange: (v) => setState(() => _focused = v),
-      child: Builder(
+      child: MouseRegion(
+        onEnter: (_) => _node.requestFocus(),
+        child: Builder(
         builder: (context) {
           return Shortcuts(
             shortcuts: const <ShortcutActivator, Intent>{
@@ -89,6 +103,7 @@ class _FocusCardState extends State<FocusCard> {
           );
         },
       ),
+      ),
     );
   }
 }
@@ -137,12 +152,22 @@ class NovaButton extends StatefulWidget {
 
 class _NovaButtonState extends State<NovaButton> {
   bool _f = false;
+  final FocusNode _node = FocusNode();
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Focus(
+      focusNode: _node,
       autofocus: widget.autofocus,
       onFocusChange: (v) => setState(() => _f = v),
+      child: MouseRegion(
+        onEnter: (_) => _node.requestFocus(),
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
@@ -193,6 +218,7 @@ class _NovaButtonState extends State<NovaButton> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -646,6 +646,7 @@ class _FieldBox extends StatelessWidget {
   final bool active;
   final bool focused;
   final VoidCallback onTap;
+  final VoidCallback? onHover;
 
   const _FieldBox({
     required this.label,
@@ -654,13 +655,17 @@ class _FieldBox extends StatelessWidget {
     required this.focused,
     required this.onTap,
     this.obscure = false,
+    this.onHover,
   });
 
   @override
   Widget build(BuildContext context) {
     final shown = obscure && text.isNotEmpty ? '•' * text.length : text;
-    return GestureDetector(
-      onTap: onTap,
+    // v10.6 : MouseRegion -> viser au pointeur selectionne aussi.
+    return MouseRegion(
+      onEnter: (_) => onHover?.call(),
+      child: GestureDetector(
+        onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         width: double.infinity,
@@ -706,6 +711,7 @@ class _FieldBox extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -717,6 +723,7 @@ class _CursorPill extends StatelessWidget {
   final bool selected;
   final bool focused;
   final VoidCallback onTap;
+  final VoidCallback? onHover;
 
   const _CursorPill({
     required this.label,
@@ -724,12 +731,15 @@ class _CursorPill extends StatelessWidget {
     this.icon,
     this.selected = false,
     this.focused = false,
+    this.onHover,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return MouseRegion(
+      onEnter: (_) => onHover?.call(),
+      child: GestureDetector(
+        onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
@@ -766,6 +776,7 @@ class _CursorPill extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -779,6 +790,7 @@ class _KbKey extends StatelessWidget {
   final bool danger;
   final bool focused;
   final VoidCallback onTap;
+  final VoidCallback? onHover;
 
   const _KbKey({
     required this.onTap,
@@ -788,12 +800,15 @@ class _KbKey extends StatelessWidget {
     this.accent = false,
     this.danger = false,
     this.focused = false,
+    this.onHover,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    return MouseRegion(
+      onEnter: (_) => onHover?.call(),
+      child: GestureDetector(
+        onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 90),
         width: wide ? null : 50,
@@ -834,6 +849,7 @@ class _KbKey extends StatelessWidget {
                   color: danger ? Colors.redAccent : NovaColors.text,
                 ),
               ),
+      ),
       ),
     );
   }
